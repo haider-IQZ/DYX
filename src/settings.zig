@@ -68,6 +68,8 @@ fn defaultSettings(allocator: std.mem.Allocator) !models.AppSettings {
         .defaultMaxSpeedBytes = null,
         .defaultNoClobber = false,
         .defaultTimeoutSeconds = 30,
+        .maxConcurrentDownloads = 0,
+        .autoRetryOnFail = true,
         .theme = .system,
     };
 }
@@ -128,6 +130,8 @@ test "settings can round-trip" {
         .defaultMaxSpeedBytes = 1234,
         .defaultNoClobber = true,
         .defaultTimeoutSeconds = 60,
+        .maxConcurrentDownloads = 3,
+        .autoRetryOnFail = false,
         .theme = .dark,
     };
     defer settings_value.deinit(allocator);
@@ -141,4 +145,6 @@ test "settings can round-trip" {
     try std.testing.expectEqualStrings("/tmp/downloads", parsed.value.defaultDownloadDir);
     try std.testing.expectEqual(@as(u32, 12), parsed.value.defaultConnections);
     try std.testing.expect(parsed.value.defaultNoClobber);
+    try std.testing.expectEqual(@as(u32, 3), parsed.value.maxConcurrentDownloads);
+    try std.testing.expect(!parsed.value.autoRetryOnFail);
 }

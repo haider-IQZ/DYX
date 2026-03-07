@@ -140,6 +140,8 @@ function createMockBridge(): DYXBridge {
     defaultMaxSpeedBytes: undefined,
     defaultNoClobber: true,
     defaultTimeoutSeconds: 30,
+    maxConcurrentDownloads: 0,
+    autoRetryOnFail: true,
     theme: 'system'
   };
 

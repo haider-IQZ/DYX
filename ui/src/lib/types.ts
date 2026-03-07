@@ -45,6 +45,8 @@ export interface AppSettings {
   defaultMaxSpeedBytes?: number;
   defaultNoClobber: boolean;
   defaultTimeoutSeconds: number;
+  maxConcurrentDownloads: number;
+  autoRetryOnFail: boolean;
   theme: ThemeMode;
 }
 

@@ -43,8 +43,6 @@ const SPEED_MODE_LIMITS: Record<SpeedMode, number> = {
   slow: 4 * 1024 * 1024
 };
 
-const LOCAL_SETTINGS_KEY = 'dyx.ui.settings';
-
 function detectCategory(filename: string) {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
 
@@ -125,13 +123,11 @@ function inferSpeedMode(settings: AppSettings): SpeedMode {
 }
 
 function toUiSettings(settings: AppSettings): DownloadSettings {
-  const speedMode = inferSpeedMode(settings);
-  const storedLocal = readLocalUiSettings();
   return {
-    speedMode,
-    maxConcurrentDownloads: storedLocal.maxConcurrentDownloads ?? 'unlimited',
+    speedMode: inferSpeedMode(settings),
+    maxConcurrentDownloads: settings.maxConcurrentDownloads > 0 ? settings.maxConcurrentDownloads : 'unlimited',
     enableSpeedLimit: settings.defaultMaxSpeedBytes != null,
-    autoRetryOnFail: storedLocal.autoRetryOnFail ?? true,
+    autoRetryOnFail: settings.autoRetryOnFail,
     defaultSavePath: settings.defaultDownloadDir
   };
 }
@@ -141,7 +137,9 @@ function mergeUiIntoBackend(ui: DownloadSettings, base: AppSettings): AppSetting
     ...base,
     defaultDownloadDir: ui.defaultSavePath,
     defaultConnections: SPEED_MODE_CONNECTIONS[ui.speedMode],
-    defaultMaxSpeedBytes: ui.enableSpeedLimit ? SPEED_MODE_LIMITS[ui.speedMode] : undefined
+    defaultMaxSpeedBytes: ui.enableSpeedLimit ? SPEED_MODE_LIMITS[ui.speedMode] : undefined,
+    maxConcurrentDownloads: ui.maxConcurrentDownloads === 'unlimited' ? 0 : ui.maxConcurrentDownloads,
+    autoRetryOnFail: ui.autoRetryOnFail
   };
 }
 
@@ -152,27 +150,10 @@ function appSettingsEqual(left: AppSettings, right: AppSettings) {
     left.defaultMaxSpeedBytes === right.defaultMaxSpeedBytes &&
     left.defaultNoClobber === right.defaultNoClobber &&
     left.defaultTimeoutSeconds === right.defaultTimeoutSeconds &&
+    left.maxConcurrentDownloads === right.maxConcurrentDownloads &&
+    left.autoRetryOnFail === right.autoRetryOnFail &&
     left.theme === right.theme
   );
-}
-
-function readLocalUiSettings(): PartialUiSettings {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = window.localStorage.getItem(LOCAL_SETTINGS_KEY);
-    return raw ? (JSON.parse(raw) as PartialUiSettings) : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeLocalUiSettings(settings: DownloadSettings) {
-  if (typeof window === 'undefined') return;
-  const localOnly: PartialUiSettings = {
-    maxConcurrentDownloads: settings.maxConcurrentDownloads,
-    autoRetryOnFail: settings.autoRetryOnFail
-  };
-  window.localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(localOnly));
 }
 
 function speedLabelToBytes(speed?: string) {
@@ -319,11 +300,7 @@ export function useDownloads() {
         case 'settingsChanged': {
           const nextBackend = event.payload as AppSettings;
           setBackendSettings(nextBackend);
-          setSettings((current) => ({
-            ...toUiSettings(nextBackend),
-            maxConcurrentDownloads: current.maxConcurrentDownloads,
-            autoRetryOnFail: current.autoRetryOnFail
-          }));
+          setSettings(toUiSettings(nextBackend));
           break;
         }
         default:
@@ -339,18 +316,16 @@ export function useDownloads() {
 
   useEffect(() => {
     if (!hydratedRef.current || !backendSettings) return;
-    writeLocalUiSettings(settings);
     const nextBackend = mergeUiIntoBackend(settings, backendSettings);
     if (appSettingsEqual(nextBackend, backendSettings)) return;
-    const timer = window.setTimeout(async () => {
+    void (async () => {
       try {
         const saved = await saveSettings(nextBackend);
         setBackendSettings(saved);
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : 'Failed to save settings');
       }
-    }, 200);
-    return () => window.clearTimeout(timer);
+    })();
   }, [settings, backendSettings]);
 
   const mergedDownloads = useMemo(() => {
@@ -465,10 +440,7 @@ export function useDownloads() {
     try {
       const saved = await saveSettings(nextBackend);
       setBackendSettings(saved);
-      setSettings((current) => ({
-        ...current,
-        defaultSavePath: saved.defaultDownloadDir
-      }));
+      setSettings(toUiSettings(saved));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Failed to save settings');
     }

@@ -90,6 +90,8 @@ pub const AppSettings = struct {
     defaultMaxSpeedBytes: ?u64 = null,
     defaultNoClobber: bool = false,
     defaultTimeoutSeconds: u32 = 30,
+    maxConcurrentDownloads: u32 = 0,
+    autoRetryOnFail: bool = true,
     theme: Theme = .system,
 
     pub fn cloneOwned(self: AppSettings, allocator: std.mem.Allocator) !AppSettings {
@@ -99,6 +101,8 @@ pub const AppSettings = struct {
             .defaultMaxSpeedBytes = self.defaultMaxSpeedBytes,
             .defaultNoClobber = self.defaultNoClobber,
             .defaultTimeoutSeconds = self.defaultTimeoutSeconds,
+            .maxConcurrentDownloads = self.maxConcurrentDownloads,
+            .autoRetryOnFail = self.autoRetryOnFail,
             .theme = self.theme,
         };
     }
@@ -114,6 +118,8 @@ pub const AppSettings = struct {
         try writeOptionalField(jws, "defaultMaxSpeedBytes", self.defaultMaxSpeedBytes);
         try writeField(jws, "defaultNoClobber", self.defaultNoClobber);
         try writeField(jws, "defaultTimeoutSeconds", self.defaultTimeoutSeconds);
+        try writeField(jws, "maxConcurrentDownloads", self.maxConcurrentDownloads);
+        try writeField(jws, "autoRetryOnFail", self.autoRetryOnFail);
         try writeField(jws, "theme", self.theme);
         try jws.endObject();
     }
