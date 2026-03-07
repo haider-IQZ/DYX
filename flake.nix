@@ -11,12 +11,28 @@
       let
         pkgs = import nixpkgs { inherit system; };
         lib = pkgs.lib;
-        cleanedSrc = lib.cleanSource ./.;
+        cleanedSrc = builtins.path {
+          path = ./.;
+          name = "dyx-src";
+          filter = path: type:
+            let
+              base = builtins.baseNameOf path;
+            in
+              !(lib.elem base [
+                ".git"
+                ".direnv"
+                ".zig-cache"
+                "zig-out"
+                "node_modules"
+                "dist"
+                "result"
+              ]);
+        };
 
         dyxUi = pkgs.buildNpmPackage {
           pname = "dyx-ui";
           version = "0.1.0";
-          src = ./ui;
+          src = cleanedSrc + "/ui";
 
           npmDepsHash = "sha256-gCBQcOwxtJXXC7VblTs9BUKwKzgp3AdeJH8h7vjEMHE=";
           npmBuildScript = "build";
