@@ -355,7 +355,9 @@ export function useDownloads() {
 
   const mergedDownloads = useMemo(() => {
     const fallbackConnections = backendSettings?.defaultConnections ?? SPEED_MODE_CONNECTIONS[settings.speedMode];
-    const cards = [...downloads, ...history].map((item) => toCard(item, fallbackConnections));
+    const activeOutputPaths = new Set(downloads.map((item) => item.outputPath));
+    const visibleHistory = history.filter((item) => !activeOutputPaths.has(item.outputPath));
+    const cards = [...downloads, ...visibleHistory].map((item) => toCard(item, fallbackConnections));
     cards.sort((left, right) => right.addedAt.getTime() - left.addedAt.getTime());
     return cards;
   }, [downloads, history, backendSettings, settings.speedMode]);
