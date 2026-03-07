@@ -1,0 +1,5 @@
+.zig-cache/
+zig-out/
+ui/node_modules/
+ui/dist/
+vendor/webview/.git/
