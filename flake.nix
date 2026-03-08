@@ -46,6 +46,7 @@
           npmDeps = pkgs.importNpmLock {
             npmRoot = cleanedSrc;
           };
+          npmConfigHook = pkgs.importNpmLock.npmConfigHook;
           npmBuildScript = "build";
 
           installPhase = ''
@@ -86,6 +87,7 @@
           version = "0.1.0";
           src = cleanedSrc;
           cargoRoot = "src-tauri";
+          buildAndTestSubdir = "src-tauri";
           cargoLock.lockFile = ./src-tauri/Cargo.lock;
 
           nativeBuildInputs = with pkgs; [
@@ -101,13 +103,14 @@
           ];
 
           preBuild = ''
-            rm -rf ../out
-            cp -r ${dyxFrontend} ../out
+            rm -rf dist
+            mkdir -p dist
+            cp -r ${dyxFrontend}/. dist/
           '';
 
           postInstall = ''
             mkdir -p $out/libexec
-            install -Dm755 target/release/dyx-tauri $out/libexec/dyx-tauri
+            mv $out/bin/dyx-tauri $out/libexec/dyx-tauri
 
             makeWrapper $out/libexec/dyx-tauri $out/bin/dyx \
               --set DYX_BACKEND_BIN "${dyxBackend}/libexec/dyx-backend" \
@@ -131,6 +134,7 @@
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             axel
+            bun
             cargo
             cargo-tauri
             clang
@@ -150,11 +154,11 @@
             echo "DYX dev shell ready"
             echo "Backend build: zig build backend"
             echo "Backend tests: zig build test"
-            echo "Frontend dev: npm run dev"
-            echo "Tauri dev: npm run tauri:dev"
+            echo "Frontend dev: bun run dev"
+            echo "Tauri dev: bun run tauri:dev"
             echo "Package build: nix build ."
             echo "Package run: nix run ."
-            echo "Wayland opt-in: DYX_EXPERIMENTAL_WAYLAND=1 npm run tauri:dev"
+            echo "Wayland opt-in: DYX_EXPERIMENTAL_WAYLAND=1 bun run tauri:dev"
             export CARGO_TARGET_DIR="$PWD/.cargo-target"
           '';
         };

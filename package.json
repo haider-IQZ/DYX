@@ -2,6 +2,7 @@
   "name": "dyx",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "bun@1.3.10",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420",
     "build": "vite build",

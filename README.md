@@ -8,6 +8,8 @@ Linux download managers kept showing up dressed like a committee compromise from
 - `Tauri + Rust` handling the native shell
 - `React + Vite` rendering the UI you actually wanted instead of whatever beige tragedy shipped by default
 
+The JavaScript side is `bun`-first now, because life is short and `npm` has done enough.
+
 ## What Lives Here
 
 - `src/`
@@ -37,6 +39,12 @@ Enter the shell:
 nix develop "path:$PWD"
 ```
 
+Install JS deps:
+
+```bash
+bun install
+```
+
 Build the backend:
 
 ```bash
@@ -52,15 +60,21 @@ zig build test
 Run the UI in the browser if you just want frontend iteration:
 
 ```bash
-npm install
-npm run dev
+bun run dev
 ```
 
 Run the actual desktop app in dev mode:
 
 ```bash
-npm run tauri:dev
+bun run tauri:dev
 ```
+
+The one boring exception:
+
+- local dev uses `bun`
+- `nix build` still uses the checked-in `package-lock.json` for reproducible frontend packaging
+
+So if you add or change JS dependencies, update both lockfiles before calling it done.
 
 ## Stack
 
@@ -83,7 +97,7 @@ Linux graphics remains emotionally unstable, so the app defaults to the safer X1
 Try Wayland if you want:
 
 ```bash
-DYX_EXPERIMENTAL_WAYLAND=1 npm run tauri:dev
+DYX_EXPERIMENTAL_WAYLAND=1 bun run tauri:dev
 ```
 
 Or for the packaged app:
