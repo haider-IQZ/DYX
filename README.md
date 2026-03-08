@@ -6,7 +6,7 @@ Linux download managers kept showing up dressed like a committee compromise from
 
 - `Zig` doing the real download/backend work
 - `Tauri + Rust` handling the native shell
-- `Next.js + React` rendering the UI you actually wanted instead of whatever beige tragedy shipped by default
+- `React + Vite` rendering the UI you actually wanted instead of whatever beige tragedy shipped by default
 
 ## What Lives Here
 
@@ -14,7 +14,7 @@ Linux download managers kept showing up dressed like a committee compromise from
   The Zig backend. This is the part that actually talks to `axel`, tracks downloads, saves settings/history, and emits events.
 - `src-tauri/`
   The native shell and backend bridge.
-- `app/`, `components/`, `hooks/`, `lib/`, `public/`
+- `components/`, `hooks/`, `lib/`, `public/`, `src/`, `styles/`
   The real frontend. This is the app now, not a side experiment in a nested folder.
 - `build.zig`
   Backend-only Zig build file. We are not pretending the old webview shell still matters.
@@ -69,7 +69,7 @@ Yes, it is a little unholy:
 - `Zig`
 - `Rust`
 - `Tauri`
-- `Next`
+- `Vite`
 - `React`
 - `axel`
 - `Nix`

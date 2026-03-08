@@ -1,13 +1,11 @@
-"use client"
-
 import { useState } from "react"
 import { Sidebar } from "@/components/dyx/sidebar"
 import { DownloadArea } from "@/components/dyx/download-area"
 import { AddDownloadDialog } from "@/components/dyx/add-download-dialog"
 import { TitleBar } from "@/components/dyx/title-bar"
-import { useDyxDownloads, type Download } from "@/hooks/use-dyx-downloads"
+import { useDyxDownloads } from "@/hooks/use-dyx-downloads"
 
-export default function DYXDownloadManager() {
+export default function App() {
   const {
     downloads,
     stats,
@@ -33,24 +31,26 @@ export default function DYXDownloadManager() {
   })
 
   return (
-    <div className="h-screen w-screen bg-background overflow-hidden flex flex-col">
-      <TitleBar />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar activeFilter={activeFilter} onFilterChange={setActiveFilter} stats={stats} />
-        <DownloadArea
-          downloads={filteredDownloads}
-          onTogglePause={togglePause}
-          onRemove={removeDownload}
-          onOpenFolder={revealDownload}
-          onAddNew={() => setIsDialogOpen(true)}
+    <div className="dark h-screen w-screen overflow-hidden bg-background text-foreground">
+      <div className="flex h-full flex-col">
+        <TitleBar />
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar activeFilter={activeFilter} onFilterChange={setActiveFilter} stats={stats} />
+          <DownloadArea
+            downloads={filteredDownloads}
+            onTogglePause={togglePause}
+            onRemove={removeDownload}
+            onOpenFolder={revealDownload}
+            onAddNew={() => setIsDialogOpen(true)}
+          />
+        </div>
+        <AddDownloadDialog
+          open={isDialogOpen}
+          onOpenChange={setIsDialogOpen}
+          onAdd={addDownload}
+          defaultSavePath={defaultSavePath}
         />
       </div>
-      <AddDownloadDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        onAdd={addDownload}
-        defaultSavePath={defaultSavePath}
-      />
     </div>
   )
 }

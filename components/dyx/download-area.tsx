@@ -2,7 +2,7 @@
 
 import { Plus, Search } from "lucide-react"
 import { useState } from "react"
-import type { Download } from "@/app/page"
+import type { Download } from "@/hooks/use-dyx-downloads"
 import { DownloadItem } from "./download-item"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"

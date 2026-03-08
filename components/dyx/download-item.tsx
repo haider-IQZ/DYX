@@ -16,7 +16,7 @@ import {
   Clock,
   AlertCircle
 } from "lucide-react"
-import type { Download } from "@/app/page"
+import type { Download } from "@/hooks/use-dyx-downloads"
 import { cn } from "@/lib/utils"
 
 type DownloadItemProps = {

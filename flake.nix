@@ -1,5 +1,5 @@
 {
-  description = "DYX - Tauri + Next frontend with a Zig Axel backend";
+  description = "DYX - Tauri + Vite frontend with a Zig Axel backend";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -43,13 +43,15 @@
           pname = "dyx-frontend";
           version = "0.1.0";
           src = cleanedSrc;
-          npmDepsHash = "sha256-3AhIBanCzRRY2jwvNK23BmCO6Kl9C9bCk0xHqQsaZ6E=";
+          npmDeps = pkgs.importNpmLock {
+            npmRoot = cleanedSrc;
+          };
           npmBuildScript = "build";
 
           installPhase = ''
             runHook preInstall
             mkdir -p $out
-            cp -r out/. $out/
+            cp -r dist/. $out/
             runHook postInstall
           '';
         };
@@ -87,6 +89,7 @@
           cargoLock.lockFile = ./src-tauri/Cargo.lock;
 
           nativeBuildInputs = with pkgs; [
+            mold
             pkg-config
             makeWrapper
           ];
@@ -129,12 +132,13 @@
           packages = with pkgs; [
             axel
             cargo
+            cargo-tauri
             clang
+            mold
             nodejs
             openssl
             pkg-config
             rustc
-            cargo-tauri
             webkitgtk_4_1
             gtk3
             xdg-utils
@@ -151,6 +155,7 @@
             echo "Package build: nix build ."
             echo "Package run: nix run ."
             echo "Wayland opt-in: DYX_EXPERIMENTAL_WAYLAND=1 npm run tauri:dev"
+            export CARGO_TARGET_DIR="$PWD/.cargo-target"
           '';
         };
       });
