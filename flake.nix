@@ -1,5 +1,5 @@
 {
-  description = "DYX - a modern Axel desktop app built with Zig and React";
+  description = "DYX - Tauri + Next frontend with a Zig Axel backend";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -11,6 +11,7 @@
       let
         pkgs = import nixpkgs { inherit system; };
         lib = pkgs.lib;
+
         cleanedSrc = builtins.path {
           path = ./.;
           name = "dyx-src";
@@ -23,30 +24,38 @@
                 ".direnv"
                 ".zig-cache"
                 "zig-out"
-                "node_modules"
-                "dist"
+                "build"
                 "result"
+                "node_modules"
+                ".next"
+                "out"
+                "target"
               ]);
         };
 
-        dyxUi = pkgs.buildNpmPackage {
-          pname = "dyx-ui";
-          version = "0.1.0";
-          src = cleanedSrc + "/ui";
+        runtimePath = lib.makeBinPath (with pkgs; [
+          axel
+          xdg-utils
+          zenity
+        ]);
 
-          npmDepsHash = "sha256-gCBQcOwxtJXXC7VblTs9BUKwKzgp3AdeJH8h7vjEMHE=";
+        dyxFrontend = pkgs.buildNpmPackage {
+          pname = "dyx-frontend";
+          version = "0.1.0";
+          src = cleanedSrc;
+          npmDepsHash = "sha256-3AhIBanCzRRY2jwvNK23BmCO6Kl9C9bCk0xHqQsaZ6E=";
           npmBuildScript = "build";
 
           installPhase = ''
             runHook preInstall
             mkdir -p $out
-            cp -r dist/. $out/
+            cp -r out/. $out/
             runHook postInstall
           '';
         };
 
-        dyx = pkgs.stdenv.mkDerivation {
-          pname = "dyx";
+        dyxBackend = pkgs.stdenv.mkDerivation {
+          pname = "dyx-backend";
           version = "0.1.0";
           src = cleanedSrc;
 
@@ -54,83 +63,94 @@
             zig
             pkg-config
             clang
-            makeWrapper
-          ];
-
-          buildInputs = with pkgs; [
-            webkitgtk_4_1
-            gtk3
           ];
 
           buildPhase = ''
             runHook preBuild
-            zig build -Doptimize=ReleaseSafe
+            zig build backend -Doptimize=ReleaseSafe
             runHook postBuild
           '';
 
           installPhase = ''
             runHook preInstall
-
-            mkdir -p $out/libexec $out/bin $out/share/dyx/ui/dist
-            install -Dm755 zig-out/bin/dyx $out/libexec/dyx
-            cp -r ${dyxUi}/. $out/share/dyx/ui/dist/
-
-            cat > $out/bin/dyx <<'EOF'
-            #!${pkgs.bash}/bin/bash
-            set -euo pipefail
-
-            export DYX_UI_DIST="@out@/share/dyx/ui/dist"
-            export PATH="@runtimePath@:$PATH"
-            export WEBKIT_DISABLE_DMABUF_RENDERER="''${WEBKIT_DISABLE_DMABUF_RENDERER:-1}"
-
-            if [ -z "''${GDK_BACKEND:-}" ]; then
-              if [ "''${DYX_EXPERIMENTAL_WAYLAND:-0}" = "1" ]; then
-                export GDK_BACKEND=wayland
-              else
-                export GDK_BACKEND=x11
-              fi
-            fi
-
-            exec "@out@/libexec/dyx" "$@"
-            EOF
-            substituteInPlace $out/bin/dyx \
-              --replace-fail "@out@" "$out" \
-              --replace-fail "@runtimePath@" "${lib.makeBinPath (with pkgs; [ axel xdg-utils zenity ])}"
-            chmod +x $out/bin/dyx
-
+            mkdir -p $out/libexec
+            install -Dm755 zig-out/bin/dyx-backend $out/libexec/dyx-backend
             runHook postInstall
+          '';
+        };
+
+        dyxTauri = pkgs.rustPlatform.buildRustPackage {
+          pname = "dyx";
+          version = "0.1.0";
+          src = cleanedSrc;
+          cargoRoot = "src-tauri";
+          cargoLock.lockFile = ./src-tauri/Cargo.lock;
+
+          nativeBuildInputs = with pkgs; [
+            pkg-config
+            makeWrapper
+          ];
+
+          buildInputs = with pkgs; [
+            gtk3
+            openssl
+            webkitgtk_4_1
+          ];
+
+          preBuild = ''
+            rm -rf ../out
+            cp -r ${dyxFrontend} ../out
+          '';
+
+          postInstall = ''
+            mkdir -p $out/libexec
+            install -Dm755 target/release/dyx-tauri $out/libexec/dyx-tauri
+
+            makeWrapper $out/libexec/dyx-tauri $out/bin/dyx \
+              --set DYX_BACKEND_BIN "${dyxBackend}/libexec/dyx-backend" \
+              --prefix PATH : "${runtimePath}" \
+              --set-default WEBKIT_DISABLE_DMABUF_RENDERER 1 \
+              --run 'if [ -z "''${GDK_BACKEND:-}" ] && [ "''${DYX_EXPERIMENTAL_WAYLAND:-0}" != "1" ]; then export GDK_BACKEND=x11; fi'
           '';
         };
       in
       {
-        packages.default = dyx;
-        packages.dyx = dyx;
-        packages.ui = dyxUi;
+        packages.default = dyxTauri;
+        packages.tauri = dyxTauri;
+        packages.backend = dyxBackend;
+        packages.frontend = dyxFrontend;
 
         apps.default = {
           type = "app";
-          program = "${dyx}/bin/dyx";
+          program = "${dyxTauri}/bin/dyx";
         };
 
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             axel
+            cargo
             clang
-            zenity
-            xdg-utils
             nodejs
+            openssl
             pkg-config
+            rustc
+            cargo-tauri
             webkitgtk_4_1
             gtk3
+            xdg-utils
+            zenity
             zig
           ];
 
           shellHook = ''
             echo "DYX dev shell ready"
-            echo "Production-style run: zig build run"
-            echo "Dev-server run: DYX_UI_DEV_URL=http://127.0.0.1:5173 zig build run"
+            echo "Backend build: zig build backend"
+            echo "Backend tests: zig build test"
+            echo "Frontend dev: npm run dev"
+            echo "Tauri dev: npm run tauri:dev"
             echo "Package build: nix build ."
-            echo "Wayland opt-in: DYX_EXPERIMENTAL_WAYLAND=1 nix run ."
+            echo "Package run: nix run ."
+            echo "Wayland opt-in: DYX_EXPERIMENTAL_WAYLAND=1 npm run tauri:dev"
           '';
         };
       });

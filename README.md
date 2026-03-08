@@ -1,113 +1,113 @@
 # DYX
 
-A clean desktop wrapper for `axel`, because apparently Linux download managers heard "design" and took it as a personal insult.
+Linux download managers kept showing up dressed like a committee compromise from 2009, so this repo is the correction.
 
-This exists because I got tired of download apps that look like they were last loved during a kernel mailing list argument. So this one is fast, dark, sharp, and actually pleasant to use.
+`DYX` is a desktop app for `axel` with:
 
-## What It Is
+- `Zig` doing the real download/backend work
+- `Tauri + Rust` handling the native shell
+- `Next.js + React` rendering the UI you actually wanted instead of whatever beige tragedy shipped by default
 
-`DYX` is a Linux desktop app built with:
+## What Lives Here
 
-- `Zig` for the backend
-- `webview` for the native desktop window
-- `React + Vite + TypeScript` for the UI
-- `axel` for the actual downloading part, because reinventing a battle-tested downloader would be fake productivity
-- `Nix` so the setup is less "works on my machine" and more "works because the machine was forced to behave"
-
-## Features
-
-- Multi-connection downloads powered by `axel`
-- Real-time speed, ETA, and downloaded size
-- Pause, resume, retry, and delete
-- Partial download recovery with `.st` sidecar support
-- Remembers history and settings
-- Clean UI instead of the usual Linux "suffering is a feature" aesthetic
+- `src/`
+  The Zig backend. This is the part that actually talks to `axel`, tracks downloads, saves settings/history, and emits events.
+- `src-tauri/`
+  The native shell and backend bridge.
+- `app/`, `components/`, `hooks/`, `lib/`, `public/`
+  The real frontend. This is the app now, not a side experiment in a nested folder.
+- `build.zig`
+  Backend-only Zig build file. We are not pretending the old webview shell still matters.
 
 ## Run It
 
-The normal way:
+The civilized way:
 
 ```bash
 nix run "path:$PWD"
 ```
 
-That is the path that should feel nice and civilized.
+That should build and launch the packaged Tauri app with the Zig backend wired in.
 
-## Build It
+## Work On It
 
-If you want the package output:
-
-```bash
-nix build "path:$PWD"
-```
-
-Then run:
-
-```bash
-./result/bin/dyx
-```
-
-## Dev
-
-Enter the dev shell:
+Enter the shell:
 
 ```bash
 nix develop "path:$PWD"
 ```
 
-Run the app from source:
+Build the backend:
 
 ```bash
-zig build run
+zig build backend
 ```
 
-If you want frontend hot reload too:
+Run backend tests:
 
 ```bash
-cd ui
+zig build test
+```
+
+Run the UI in the browser if you just want frontend iteration:
+
+```bash
 npm install
 npm run dev
 ```
 
-And in another terminal:
+Run the actual desktop app in dev mode:
 
 ```bash
-nix develop "path:$PWD" -c env DYX_UI_DEV_URL=http://127.0.0.1:5173 zig build run
+npm run tauri:dev
 ```
+
+## Stack
+
+Yes, it is a little unholy:
+
+- `Zig`
+- `Rust`
+- `Tauri`
+- `Next`
+- `React`
+- `axel`
+- `Nix`
+
+But it works, and at this point I care more about the app feeling good than winning a purity contest against my own toolchain.
 
 ## Wayland
 
-By default the packaged app uses the stable X11 path, because embedded WebKit on Wayland decided to be dramatic.
+Linux graphics remains emotionally unstable, so the app defaults to the safer X11 path unless you explicitly opt into Wayland.
 
-If you want to try the experimental Wayland route anyway:
+Try Wayland if you want:
+
+```bash
+DYX_EXPERIMENTAL_WAYLAND=1 npm run tauri:dev
+```
+
+Or for the packaged app:
 
 ```bash
 DYX_EXPERIMENTAL_WAYLAND=1 nix run "path:$PWD"
 ```
 
-If it behaves beautifully, great.
+If it feels silky smooth, congratulations.
 
-If it explodes aesthetically or spiritually, that is why X11 is still the default.
+If it detonates visually, that is why the fallback exists.
 
 ## Why Axel
 
-Because `axel` is fast, proven, and already good at the hard part.
+Because `axel` already knows how to do the hard part, and I would rather build a good app around a proven downloader than spend six months reinventing a less reliable one out of ego.
 
-This app is the "give it a proper UI and stop making me babysit a terminal" layer.
+## Status
 
-## Current Status
+This is alpha software, but it is real alpha software:
 
-It is very much real software now:
+- downloads work
+- pause/resume works
+- delete cleans up partials and `.st` files
+- settings and history persist
+- the UI is no longer a cry for help
 
-- downloads actually work
-- pause/resume actually work
-- delete cleans up files and `.st`
-- closing the app does not silently pretend everything is fine
-
-Which, for a desktop app project, is honestly already a small miracle.
-
-## License
-
-Do whatever makes sense for the repo owner here.
-
-Right now this README is more emotionally committed than legally committed.
+Which is honestly more than can be said for a lot of desktop apps that claim to be finished.

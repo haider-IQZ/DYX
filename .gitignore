@@ -1,5 +1,11 @@
 .zig-cache/
 zig-out/
-ui/node_modules/
-ui/dist/
-vendor/webview/.git/
+build/
+result/
+node_modules/
+.next/
+out/
+src-tauri/target/
+.direnv/
+.env*.local
+.DS_Store
