@@ -11,7 +11,7 @@ Rectangle {
 
     radius: tokens.radiusMd
     color: backgroundColor
-    implicitHeight: 22
+    implicitHeight: tokens.px(22)
     implicitWidth: badgeLabel.implicitWidth + tokens.spacing.md
 
     Tokens { id: tokens }

@@ -11,8 +11,8 @@ Button {
     property color borderColor: "transparent"
     property bool ghost: false
 
-    implicitHeight: 36
-    implicitWidth: Math.max(90, contentItem.implicitWidth + 24)
+    implicitHeight: tokens.px(36)
+    implicitWidth: Math.max(tokens.px(90), contentItem.implicitWidth + tokens.px(24))
     hoverEnabled: true
 
     Tokens { id: tokens }

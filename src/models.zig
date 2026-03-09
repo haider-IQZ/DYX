@@ -86,7 +86,7 @@ pub const StartDownloadRequest = struct {
 
 pub const AppSettings = struct {
     defaultDownloadDir: []const u8,
-    defaultConnections: u32 = 8,
+    defaultConnections: u32 = 32,
     defaultMaxSpeedBytes: ?u64 = null,
     defaultNoClobber: bool = false,
     defaultTimeoutSeconds: u32 = 30,

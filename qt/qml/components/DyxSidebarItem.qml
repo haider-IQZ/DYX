@@ -10,10 +10,10 @@ Button {
     property int count: -1
     property bool active: false
 
-    implicitHeight: 36
+    implicitHeight: tokens.px(36)
     hoverEnabled: true
-    leftPadding: 12
-    rightPadding: 12
+    leftPadding: tokens.px(12)
+    rightPadding: tokens.px(12)
 
     Tokens { id: tokens }
 
@@ -27,17 +27,17 @@ Button {
     }
 
     contentItem: RowLayout {
-        spacing: 12
+        spacing: tokens.px(12)
 
         Item {
-            Layout.preferredWidth: 18
-            Layout.preferredHeight: 18
+            Layout.preferredWidth: tokens.px(18)
+            Layout.preferredHeight: tokens.px(18)
 
             IconGlyph {
                 anchors.centerIn: parent
                 iconName: root.iconName
                 iconColor: root.active ? tokens.colors.primary : tokens.colors.mutedForeground
-                font.pixelSize: 15
+                font.pixelSize: tokens.px(15)
             }
         }
 
@@ -54,9 +54,9 @@ Button {
         Rectangle {
             visible: root.count >= 0
             color: root.active ? Qt.rgba(tokens.colors.primary.r, tokens.colors.primary.g, tokens.colors.primary.b, 0.3) : tokens.colors.muted
-            radius: 10
-            implicitWidth: badgeLabel.implicitWidth + 12
-            implicitHeight: 20
+            radius: tokens.px(10)
+            implicitWidth: badgeLabel.implicitWidth + tokens.px(12)
+            implicitHeight: tokens.px(20)
 
             Text {
                 id: badgeLabel

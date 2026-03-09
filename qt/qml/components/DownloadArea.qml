@@ -26,22 +26,14 @@ Rectangle {
             Layout.preferredHeight: tokens.contentHeaderHeight
             color: "transparent"
 
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                height: 1
-                color: tokens.colors.border
-            }
-
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 24
-                anchors.rightMargin: 24
-                spacing: 16
+                anchors.leftMargin: tokens.spacing.xl
+                anchors.rightMargin: tokens.spacing.xl
+                spacing: tokens.spacing.lg
 
                 RowLayout {
-                    spacing: 16
+                    spacing: tokens.spacing.lg
 
                     Text {
                         text: "Downloads"
@@ -66,7 +58,7 @@ Rectangle {
 
                 DyxInput {
                     id: searchInput
-                    Layout.preferredWidth: 256
+                    Layout.preferredWidth: tokens.px(256)
                     leadingIcon: "search"
                     placeholderText: "Search downloads..."
                     onTextChanged: root.searchChanged(text)
@@ -90,47 +82,61 @@ Rectangle {
                 sourceComponent: Item {
                     Column {
                         anchors.centerIn: parent
-                        spacing: 16
+                        spacing: tokens.spacing.lg
 
                         Rectangle {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            width: 64
-                            height: 64
-                            radius: 32
+                            width: tokens.px(64)
+                            height: tokens.px(64)
+                            radius: width / 2
                             color: tokens.colors.muted
 
                             IconGlyph {
                                 anchors.centerIn: parent
                                 iconName: "plus"
                                 iconColor: tokens.colors.mutedForeground
-                                font.pixelSize: 26
+                                font.pixelSize: tokens.px(26)
                             }
                         }
 
-                        Text {
-                            text: "No downloads yet"
-                            color: tokens.colors.foreground
-                            font.pixelSize: 18
-                            font.weight: Font.Medium
-                            horizontalAlignment: Text.AlignHCenter
-                            width: 260
-                            renderType: Text.NativeRendering
-                        }
+                        Item {
+                            width: tokens.px(300)
+                            implicitHeight: emptyStateTextStack.implicitHeight
 
-                        Text {
-                            text: "Click \"Add URL\" to start downloading files"
-                            color: tokens.colors.mutedForeground
-                            font.pixelSize: tokens.type.bodySmall
-                            horizontalAlignment: Text.AlignHCenter
-                            width: 280
-                            wrapMode: Text.WordWrap
-                            renderType: Text.NativeRendering
-                        }
+                            Column {
+                                id: emptyStateTextStack
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                spacing: tokens.px(12)
 
-                        DyxButton {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "Add your first download"
-                            onClicked: root.addNew()
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: "No downloads yet"
+                                    color: tokens.colors.foreground
+                                    font.pixelSize: tokens.px(18)
+                                    font.weight: Font.Medium
+                                    horizontalAlignment: Text.AlignHCenter
+                                    width: tokens.px(260)
+                                    renderType: Text.NativeRendering
+                                }
+
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: "Click \"Add URL\" to start downloading files"
+                                    color: tokens.colors.mutedForeground
+                                    font.pixelSize: tokens.type.bodySmall
+                                    horizontalAlignment: Text.AlignHCenter
+                                    width: parent.width
+                                    wrapMode: Text.WordWrap
+                                    renderType: Text.NativeRendering
+                                }
+
+                                DyxButton {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: "Add your first download"
+                                    onClicked: root.addNew()
+                                }
+                            }
                         }
                     }
                 }
@@ -138,9 +144,9 @@ Rectangle {
 
             ListView {
                 anchors.fill: parent
-                anchors.margins: 16
+                anchors.margins: tokens.spacing.lg
                 clip: true
-                spacing: 8
+                spacing: tokens.spacing.sm
                 model: downloadsModel
                 visible: downloadsModel && downloadsModel.count > 0
 

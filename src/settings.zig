@@ -64,7 +64,7 @@ fn defaultSettings(allocator: std.mem.Allocator) !models.AppSettings {
     const default_dir = try std.fs.path.join(allocator, &.{ home, "Downloads" });
     return .{
         .defaultDownloadDir = default_dir,
-        .defaultConnections = 8,
+        .defaultConnections = 32,
         .defaultMaxSpeedBytes = null,
         .defaultNoClobber = false,
         .defaultTimeoutSeconds = 30,

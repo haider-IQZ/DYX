@@ -7,9 +7,11 @@ Rectangle {
     id: root
 
     required property var appWindow
+    readonly property int chromeButtonSize: 12
+    readonly property int chromeIconSize: 8
 
     color: tokens.colors.card
-    height: tokens.titleBarHeight
+    height: 48
     border.width: 0
 
     Tokens { id: tokens }
@@ -23,14 +25,6 @@ Rectangle {
                 root.appWindow.startSystemMove()
             }
         }
-    }
-
-    Rectangle {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        height: 1
-        color: tokens.colors.border
     }
 
     RowLayout {
@@ -51,9 +45,9 @@ Rectangle {
 
                 delegate: Rectangle {
                     required property var modelData
-                    width: 12
-                    height: 12
-                    radius: 6
+                    width: root.chromeButtonSize
+                    height: root.chromeButtonSize
+                    radius: width / 2
                     color: modelData.fill
 
                     IconGlyph {
@@ -61,7 +55,7 @@ Rectangle {
                         visible: mouseArea.containsMouse
                         iconName: modelData.symbol
                         iconColor: modelData.symbolColor
-                        font.pixelSize: 8
+                        font.pixelSize: root.chromeIconSize
                     }
 
                     MouseArea {

@@ -6,6 +6,7 @@
 #include <QEventLoop>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFileInfoList>
 #include <QJsonDocument>
 #include <QJsonValue>
 #include <QRegularExpression>
@@ -199,6 +200,68 @@ QString BackendClient::pickDirectory(const QString &initialPath) {
         emit directoryPicked(selection);
     }
     return selection;
+}
+
+QString BackendClient::homeDirectory() const {
+    return QDir::homePath();
+}
+
+QString BackendClient::normalizeDirectoryPath(const QString &path) const {
+    const QString trimmed = path.trimmed();
+    const QString fallback = !m_settingsModel.defaultDownloadDir().trimmed().isEmpty()
+        ? m_settingsModel.defaultDownloadDir().trimmed()
+        : QDir::homePath();
+
+    auto normalizedExistingDir = [](const QString &candidate) -> QString {
+        const QFileInfo info(candidate);
+        if (!info.exists() || !info.isDir()) {
+            return {};
+        }
+        const QString canonical = info.canonicalFilePath();
+        return canonical.isEmpty() ? QDir::cleanPath(info.absoluteFilePath()) : canonical;
+    };
+
+    if (trimmed.isEmpty()) {
+        return normalizedExistingDir(fallback);
+    }
+
+    if (const QString exact = normalizedExistingDir(trimmed); !exact.isEmpty()) {
+        return exact;
+    }
+
+    const QFileInfo parentInfo(QFileInfo(trimmed).absolutePath());
+    if (parentInfo.exists() && parentInfo.isDir()) {
+        const QString canonical = parentInfo.canonicalFilePath();
+        return canonical.isEmpty() ? QDir::cleanPath(parentInfo.absoluteFilePath()) : canonical;
+    }
+
+    return normalizedExistingDir(fallback);
+}
+
+QString BackendClient::parentDirectory(const QString &path) const {
+    QDir dir(normalizeDirectoryPath(path));
+    if (!dir.cdUp()) {
+        return dir.path();
+    }
+    return dir.path();
+}
+
+QVariantList BackendClient::listDirectories(const QString &path) const {
+    const QDir dir(normalizeDirectoryPath(path));
+    const QFileInfoList entries = dir.entryInfoList(
+        QDir::Dirs | QDir::NoDotAndDotDot | QDir::Readable,
+        QDir::Name | QDir::IgnoreCase
+    );
+
+    QVariantList result;
+    result.reserve(entries.size());
+    for (const QFileInfo &entry : entries) {
+        QVariantMap item;
+        item.insert(QStringLiteral("name"), entry.fileName());
+        item.insert(QStringLiteral("path"), entry.canonicalFilePath().isEmpty() ? entry.absoluteFilePath() : entry.canonicalFilePath());
+        result.push_back(item);
+    }
+    return result;
 }
 
 void BackendClient::saveSettings() {

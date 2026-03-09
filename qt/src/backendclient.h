@@ -8,6 +8,7 @@
 #include <QJsonObject>
 #include <QObject>
 #include <QProcess>
+#include <QVariantList>
 #include <QStringList>
 
 class BackendClient final : public QObject {
@@ -46,6 +47,10 @@ public:
     Q_INVOKABLE void openFolder(const QString &id);
     Q_INVOKABLE void openFile(const QString &id);
     Q_INVOKABLE QString pickDirectory(const QString &initialPath = QString());
+    Q_INVOKABLE QString homeDirectory() const;
+    Q_INVOKABLE QString normalizeDirectoryPath(const QString &path) const;
+    Q_INVOKABLE QString parentDirectory(const QString &path) const;
+    Q_INVOKABLE QVariantList listDirectories(const QString &path) const;
     Q_INVOKABLE void saveSettings();
 
 signals:

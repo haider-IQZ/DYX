@@ -7,17 +7,23 @@ DyxDialog {
     id: root
 
     property string defaultSavePath: ""
-    signal addDownload(string url, int connections, string savePath)
-    signal browseRequested(string currentPath)
+    signal addDownload(string url, string savePath)
 
-    dialogWidth: 560
+    dialogWidth: tokens.px(520)
 
     Tokens { id: tokens }
 
     onOpened: {
         urlInput.text = ""
         savePathInput.text = defaultSavePath
-        connectionsSlider.value = 8
+    }
+
+    DirectoryPickerDialog {
+        id: directoryPicker
+        hostWindow: root.hostWindow
+        onPathSelected: function(path) {
+            savePathInput.text = path
+        }
     }
 
     ColumnLayout {
@@ -32,7 +38,7 @@ DyxDialog {
             Text {
                 text: "Add New Download"
                 color: tokens.colors.foreground
-                font.pixelSize: 20
+                font.pixelSize: tokens.px(20)
                 font.weight: Font.DemiBold
                 renderType: Text.NativeRendering
             }
@@ -95,111 +101,10 @@ DyxDialog {
 
                     DyxIconButton {
                         iconName: "folder"
-                        onClicked: root.browseRequested(savePathInput.text)
+                        fillColor: "transparent"
+                        strokeColor: "transparent"
+                        onClicked: directoryPicker.openAt(savePathInput.text)
                     }
-                }
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 12
-
-                RowLayout {
-                    Layout.fillWidth: true
-
-                    Text {
-                        text: "Connections"
-                        color: tokens.colors.foreground
-                        font.pixelSize: tokens.type.bodySmall
-                        font.weight: Font.Medium
-                        renderType: Text.NativeRendering
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    Text {
-                        text: Math.round(connectionsSlider.value) + " parallel connections"
-                        color: tokens.colors.primary
-                        font.pixelSize: tokens.type.bodySmall
-                        font.weight: Font.DemiBold
-                        renderType: Text.NativeRendering
-                    }
-                }
-
-                Slider {
-                    id: connectionsSlider
-                    Layout.fillWidth: true
-                    from: 1
-                    to: 32
-                    stepSize: 1
-                    value: 8
-
-                    background: Rectangle {
-                        x: connectionsSlider.leftPadding
-                        y: connectionsSlider.topPadding + connectionsSlider.availableHeight / 2 - height / 2
-                        width: connectionsSlider.availableWidth
-                        height: 4
-                        radius: 2
-                        color: tokens.colors.muted
-
-                        Rectangle {
-                            width: connectionsSlider.visualPosition * parent.width
-                            height: parent.height
-                            radius: 2
-                            color: tokens.colors.primary
-                        }
-                    }
-
-                    handle: Rectangle {
-                        x: connectionsSlider.leftPadding + connectionsSlider.visualPosition * (connectionsSlider.availableWidth - width)
-                        y: connectionsSlider.topPadding + connectionsSlider.availableHeight / 2 - height / 2
-                        width: 16
-                        height: 16
-                        radius: 8
-                        color: tokens.colors.foreground
-                        border.width: 1
-                        border.color: tokens.colors.border
-                    }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-
-                    Text {
-                        text: "1 (Slower)"
-                        color: tokens.colors.mutedForeground
-                        font.pixelSize: tokens.type.micro
-                        renderType: Text.NativeRendering
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    Text {
-                        text: "32 (Faster)"
-                        color: tokens.colors.mutedForeground
-                        font.pixelSize: tokens.type.micro
-                        renderType: Text.NativeRendering
-                    }
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                radius: tokens.radiusLg
-                color: Qt.rgba(tokens.colors.muted.r, tokens.colors.muted.g, tokens.colors.muted.b, 0.5)
-                border.width: 1
-                border.color: tokens.colors.border
-                implicitHeight: infoText.implicitHeight + 24
-
-                Text {
-                    id: infoText
-                    anchors.fill: parent
-                    anchors.margins: 12
-                    text: "DYX uses axel under the hood for multi-connection accelerated downloads. More connections can speed up downloads from servers that support it."
-                    color: tokens.colors.mutedForeground
-                    font.pixelSize: tokens.type.caption
-                    wrapMode: Text.WordWrap
-                    renderType: Text.NativeRendering
                 }
             }
 
@@ -222,7 +127,7 @@ DyxDialog {
                     onClicked: {
                         if (urlInput.text.trim().length === 0)
                             return
-                        root.addDownload(urlInput.text.trim(), Math.round(connectionsSlider.value), savePathInput.text)
+                        root.addDownload(urlInput.text.trim(), savePathInput.text)
                         root.close()
                     }
                 }

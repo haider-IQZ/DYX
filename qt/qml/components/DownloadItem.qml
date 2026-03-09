@@ -23,7 +23,7 @@ DyxCard {
     signal removeItem(string id)
     signal openFolder(string id)
 
-    height: 116
+    height: tokens.px(116)
     hovered: cardHover.hovered || actionRow.hovered
 
     Tokens { id: tokens }
@@ -72,8 +72,8 @@ DyxCard {
 
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 16
+        anchors.margins: tokens.px(16)
+        spacing: tokens.px(16)
 
         Rectangle {
             Layout.preferredWidth: tokens.cardIconSize
@@ -85,7 +85,7 @@ DyxCard {
                 anchors.centerIn: parent
                 iconName: root.iconNameForType(root.fileType)
                 iconColor: root.status === "completed" ? tokens.colors.green : tokens.colors.mutedForeground
-                font.pixelSize: 22
+                font.pixelSize: tokens.px(22)
             }
         }
 
@@ -96,7 +96,7 @@ DyxCard {
             RowLayout {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignTop
-                spacing: 16
+                spacing: tokens.px(16)
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -125,7 +125,7 @@ DyxCard {
                 RowLayout {
                     id: actionRow
                     property bool hovered: pauseButton.hovered || folderButton.hovered || deleteButton.hovered
-                    spacing: 4
+                    spacing: tokens.px(4)
                     opacity: root.hovered ? 1 : 0
                     visible: opacity > 0.01
 
@@ -141,6 +141,8 @@ DyxCard {
                     DyxIconButton {
                         id: folderButton
                         iconName: "folder"
+                        fillColor: "transparent"
+                        strokeColor: "transparent"
                         onClicked: root.openFolder(root.downloadId)
                     }
 
@@ -153,7 +155,7 @@ DyxCard {
                 }
             }
 
-            Item { Layout.preferredHeight: 12 }
+            Item { Layout.preferredHeight: tokens.px(12) }
 
             DyxProgressBar {
                 Layout.fillWidth: true
@@ -161,11 +163,11 @@ DyxCard {
                 fillColor: root.progressColor()
             }
 
-            Item { Layout.preferredHeight: 8 }
+            Item { Layout.preferredHeight: tokens.px(8) }
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: tokens.px(12)
 
                 Text {
                     text: root.sizeText
@@ -201,13 +203,13 @@ DyxCard {
                 Item { Layout.fillWidth: true }
 
                 RowLayout {
-                    spacing: 8
+                    spacing: tokens.px(8)
 
                     IconGlyph {
                         visible: root.statusIconName().length > 0
                         iconName: root.statusIconName()
                         iconColor: root.statusColor()
-                        font.pixelSize: 14
+                        font.pixelSize: tokens.px(14)
                     }
 
                     Text {

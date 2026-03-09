@@ -1,7 +1,10 @@
 import QtQuick 2.15
+import "../theme"
 
 Item {
     id: root
+
+    Tokens { id: tokens }
 
     property string iconName: "file"
     property color iconColor: "#fbfbfb"
@@ -25,6 +28,7 @@ Item {
         "download": true,
         "file": true,
         "folder": true,
+        "gear": true,
         "harddrive": true,
         "image": true,
         "link": true,
@@ -75,7 +79,7 @@ Item {
             return "?"
         }
         color: root.iconColor
-        font.pixelSize: 14
+        font.pixelSize: tokens.px(14)
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         renderType: Text.NativeRendering

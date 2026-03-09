@@ -8,8 +8,8 @@ Item {
     property color fillColor: tokens.colors.primary
     property color trackColor: tokens.colors.muted
 
-    implicitHeight: 6
-    implicitWidth: 240
+    implicitHeight: tokens.px(6)
+    implicitWidth: tokens.px(240)
 
     Tokens { id: tokens }
 

@@ -45,7 +45,7 @@ signals:
 
 private:
     QString m_defaultDownloadDir = QStringLiteral("~/Downloads");
-    int m_defaultConnections = 8;
+    int m_defaultConnections = 32;
     int m_defaultTimeoutSeconds = 30;
     int m_maxConcurrentDownloads = 4;
     bool m_defaultNoClobber = false;

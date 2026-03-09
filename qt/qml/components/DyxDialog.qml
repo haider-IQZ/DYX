@@ -25,8 +25,8 @@ Popup {
     background: Rectangle {
         radius: tokens.radiusXl
         color: tokens.colors.card
-        border.width: 1
-        border.color: tokens.colors.border
+        border.width: 0
+        border.color: "transparent"
     }
 
     contentItem: Column {

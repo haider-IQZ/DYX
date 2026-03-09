@@ -1,5 +1,6 @@
 #include "backendclient.h"
 #include "iconprovider.h"
+#include "uistate.h"
 
 #include <QApplication>
 #include <QDir>
@@ -17,12 +18,14 @@ int main(int argc, char *argv[]) {
     app.setOrganizationName(QStringLiteral("DYX"));
 
     BackendClient backend;
+    UiState uiState;
 
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("dyxicon"), new DyxIconProvider());
     engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
     engine.rootContext()->setContextProperty(QStringLiteral("downloadModel"), backend.downloadsModel());
     engine.rootContext()->setContextProperty(QStringLiteral("settingsModel"), backend.settingsModel());
+    engine.rootContext()->setContextProperty(QStringLiteral("uiState"), &uiState);
 
     QObject::connect(
         &engine,

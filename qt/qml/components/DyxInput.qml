@@ -8,11 +8,11 @@ TextField {
 
     property string leadingIcon: ""
 
-    leftPadding: leadingIcon.length > 0 ? 38 : 12
-    rightPadding: 12
+    leftPadding: leadingIcon.length > 0 ? tokens.px(38) : tokens.px(12)
+    rightPadding: tokens.px(12)
     topPadding: 0
     bottomPadding: 0
-    implicitHeight: 36
+    implicitHeight: tokens.px(36)
     color: tokens.colors.foreground
     placeholderTextColor: tokens.colors.mutedForeground
     font.pixelSize: tokens.type.body
@@ -30,11 +30,11 @@ TextField {
         IconGlyph {
             visible: root.leadingIcon.length > 0
             anchors.left: parent.left
-            anchors.leftMargin: 12
+            anchors.leftMargin: tokens.px(12)
             anchors.verticalCenter: parent.verticalCenter
             iconName: root.leadingIcon
             iconColor: tokens.colors.mutedForeground
-            font.pixelSize: 15
+            font.pixelSize: tokens.px(15)
         }
     }
 }

@@ -28,6 +28,7 @@ qt_add_executable(dyx-qt
     src/downloadlistmodel.cpp
     src/iconprovider.cpp
     src/settingsmodel.cpp
+    src/uistate.cpp
 )
 
 target_include_directories(dyx-qt PRIVATE src)
@@ -57,6 +58,7 @@ qt_add_resources(dyx-qt dyx_icons
         resources/icons/download.svg
         resources/icons/file.svg
         resources/icons/folder-open.svg
+        resources/icons/gear.svg
         resources/icons/harddrive.svg
         resources/icons/image.svg
         resources/icons/link.svg
@@ -74,6 +76,7 @@ qt_add_qml_module(dyx-qt
     QML_FILES
         qml/Main.qml
         qml/components/AddDownloadDialog.qml
+        qml/components/DirectoryPickerDialog.qml
         qml/components/DyxBadge.qml
         qml/components/DyxButton.qml
         qml/components/DyxCard.qml
@@ -85,6 +88,7 @@ qt_add_qml_module(dyx-qt
         qml/components/DownloadArea.qml
         qml/components/DownloadItem.qml
         qml/components/IconGlyph.qml
+        qml/components/SettingsArea.qml
         qml/components/Sidebar.qml
         qml/components/TitleBar.qml
         qml/theme/Colors.qml

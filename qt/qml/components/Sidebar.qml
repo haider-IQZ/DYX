@@ -7,12 +7,15 @@ Rectangle {
     id: root
 
     property string activeFilter: "all"
+    property bool settingsActive: false
     property int activeCount: 0
     property int totalCount: 0
     property string downloadSpeedText: "0 B/s"
     signal filterSelected(string filter)
+    signal settingsSelected()
 
     width: tokens.sidebarWidth
+    implicitWidth: tokens.sidebarWidth
     color: tokens.colors.card
 
     Tokens { id: tokens }
@@ -22,23 +25,27 @@ Rectangle {
         spacing: 0
 
         Rectangle {
+            id: statsSection
             Layout.fillWidth: true
-            Layout.preferredHeight: 176
+            Layout.preferredHeight: statsCard.implicitHeight + tokens.spacing.lg * 2
             color: "transparent"
             border.width: 0
 
             Rectangle {
+                id: statsCard
                 anchors.fill: parent
-                anchors.margins: 16
+                anchors.margins: tokens.spacing.lg
                 radius: tokens.radiusXl
                 color: Qt.rgba(tokens.colors.muted.r, tokens.colors.muted.g, tokens.colors.muted.b, 0.5)
-                border.width: 1
-                border.color: tokens.colors.border
+                border.width: 0
+                border.color: "transparent"
+                implicitHeight: statsContent.implicitHeight + tokens.spacing.lg * 2
 
                 Column {
+                    id: statsContent
                     anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 14
+                    anchors.margins: tokens.spacing.lg
+                    spacing: tokens.px(14)
 
                     Repeater {
                         model: [
@@ -49,12 +56,12 @@ Rectangle {
 
                         delegate: RowLayout {
                             required property var modelData
-                            spacing: 12
+                            spacing: tokens.px(12)
                             width: parent.width
 
                             Rectangle {
-                                Layout.preferredWidth: 32
-                                Layout.preferredHeight: 32
+                                Layout.preferredWidth: tokens.statsIconSize
+                                Layout.preferredHeight: tokens.statsIconSize
                                 radius: tokens.radiusLg
                                 color: modelData.bg
 
@@ -62,7 +69,7 @@ Rectangle {
                                     anchors.centerIn: parent
                                     iconName: modelData.icon
                                     iconColor: modelData.fg
-                                    font.pixelSize: 16
+                                    font.pixelSize: tokens.px(16)
                                 }
                             }
 
@@ -101,86 +108,66 @@ Rectangle {
             Layout.fillHeight: true
             color: "transparent"
 
-            Column {
+            Flickable {
                 anchors.fill: parent
-                anchors.margins: 12
-                spacing: 4
+                anchors.margins: tokens.spacing.md
+                contentWidth: width
+                contentHeight: navColumn.implicitHeight
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
 
-                Text {
-                    text: "STATUS"
-                    color: tokens.colors.mutedForeground
-                    font.pixelSize: tokens.type.micro
-                    font.letterSpacing: 1.2
-                    renderType: Text.NativeRendering
+                Column {
+                    id: navColumn
+                    width: parent.width
+                    spacing: tokens.px(4)
+
+                    Text {
+                        text: "STATUS"
+                        color: tokens.colors.mutedForeground
+                        font.pixelSize: tokens.type.micro
+                        font.letterSpacing: 1.2
+                        renderType: Text.NativeRendering
+                    }
+
+                    DyxSidebarItem { width: parent.width; text: "All Downloads"; iconName: "download"; active: !root.settingsActive && root.activeFilter === "all"; onClicked: root.filterSelected("all") }
+                    DyxSidebarItem { width: parent.width; text: "Downloading"; iconName: "activity"; active: !root.settingsActive && root.activeFilter === "downloading"; onClicked: root.filterSelected("downloading") }
+                    DyxSidebarItem { width: parent.width; text: "Completed"; iconName: "check"; active: !root.settingsActive && root.activeFilter === "completed"; onClicked: root.filterSelected("completed") }
+                    DyxSidebarItem { width: parent.width; text: "Queued"; iconName: "clock"; active: !root.settingsActive && root.activeFilter === "queued"; onClicked: root.filterSelected("queued") }
+
+                    Item { height: tokens.spacing.lg; width: 1 }
+
+                    Text {
+                        text: "CATEGORIES"
+                        color: tokens.colors.mutedForeground
+                        font.pixelSize: tokens.type.micro
+                        font.letterSpacing: 1.2
+                        renderType: Text.NativeRendering
+                    }
+
+                    DyxSidebarItem { width: parent.width; text: "Archives"; iconName: "archive"; active: !root.settingsActive && root.activeFilter === "archives"; onClicked: root.filterSelected("archives") }
+                    DyxSidebarItem { width: parent.width; text: "Videos"; iconName: "video"; active: !root.settingsActive && root.activeFilter === "videos"; onClicked: root.filterSelected("videos") }
+                    DyxSidebarItem { width: parent.width; text: "Audio"; iconName: "audio"; active: !root.settingsActive && root.activeFilter === "audio"; onClicked: root.filterSelected("audio") }
+                    DyxSidebarItem { width: parent.width; text: "Documents"; iconName: "document"; active: !root.settingsActive && root.activeFilter === "documents"; onClicked: root.filterSelected("documents") }
                 }
-
-                DyxSidebarItem { text: "All Downloads"; iconName: "download"; active: root.activeFilter === "all"; onClicked: root.filterSelected("all") }
-                DyxSidebarItem { text: "Downloading"; iconName: "activity"; active: root.activeFilter === "downloading"; onClicked: root.filterSelected("downloading") }
-                DyxSidebarItem { text: "Completed"; iconName: "check"; active: root.activeFilter === "completed"; onClicked: root.filterSelected("completed") }
-                DyxSidebarItem { text: "Queued"; iconName: "clock"; active: root.activeFilter === "queued"; onClicked: root.filterSelected("queued") }
-
-                Item { height: 16; width: 1 }
-
-                Text {
-                    text: "CATEGORIES"
-                    color: tokens.colors.mutedForeground
-                    font.pixelSize: tokens.type.micro
-                    font.letterSpacing: 1.2
-                    renderType: Text.NativeRendering
-                }
-
-                DyxSidebarItem { text: "Archives"; iconName: "archive"; active: root.activeFilter === "archives"; onClicked: root.filterSelected("archives") }
-                DyxSidebarItem { text: "Videos"; iconName: "video"; active: root.activeFilter === "videos"; onClicked: root.filterSelected("videos") }
-                DyxSidebarItem { text: "Audio"; iconName: "audio"; active: root.activeFilter === "audio"; onClicked: root.filterSelected("audio") }
-                DyxSidebarItem { text: "Documents"; iconName: "document"; active: root.activeFilter === "documents"; onClicked: root.filterSelected("documents") }
             }
         }
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 72
+            Layout.preferredHeight: tokens.px(72)
             color: "transparent"
             border.width: 0
 
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                height: 1
-                color: tokens.colors.border
-            }
-
-            Column {
-                anchors.centerIn: parent
-                spacing: 2
-
-                Text {
-                    text: "Powered by"
-                    color: tokens.colors.mutedForeground
-                    font.pixelSize: tokens.type.micro
-                    horizontalAlignment: Text.AlignHCenter
-                    width: 120
-                    renderType: Text.NativeRendering
-                }
-
-                Text {
-                    text: "axel"
-                    color: tokens.colors.foreground
-                    font.pixelSize: tokens.type.bodySmall
-                    font.weight: Font.Medium
-                    horizontalAlignment: Text.AlignHCenter
-                    width: 120
-                    renderType: Text.NativeRendering
-                }
+            DyxSidebarItem {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
+                width: tokens.px(180)
+                text: "Settings"
+                iconName: "gear"
+                active: root.settingsActive
+                onClicked: root.settingsSelected()
             }
         }
     }
 
-    Rectangle {
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        width: 1
-        color: tokens.colors.border
-    }
 }

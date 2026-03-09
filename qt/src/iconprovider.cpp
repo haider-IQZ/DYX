@@ -28,6 +28,7 @@ QStringList overrideFileNamesForId(const QString &id) {
     if (id == QStringLiteral("document")) return {QStringLiteral("doc.text.fill.svg"), QStringLiteral("doc.text.svg"), QStringLiteral("document.svg")};
     if (id == QStringLiteral("image")) return {QStringLiteral("photo.fill.svg"), QStringLiteral("photo.svg"), QStringLiteral("image.svg")};
     if (id == QStringLiteral("file")) return {QStringLiteral("doc.fill.svg"), QStringLiteral("doc.svg"), QStringLiteral("file.svg")};
+    if (id == QStringLiteral("gear")) return {QStringLiteral("gearshape.fill.svg"), QStringLiteral("gearshape.svg"), QStringLiteral("gear-six-fill.svg"), QStringLiteral("gear-six.svg"), QStringLiteral("gear.svg")};
     if (id == QStringLiteral("search")) return {QStringLiteral("magnifyingglass.svg"), QStringLiteral("search.svg")};
     if (id == QStringLiteral("plus")) return {QStringLiteral("plus.svg"), QStringLiteral("plus.circle.fill.svg")};
     if (id == QStringLiteral("close")) return {QStringLiteral("xmark.svg"), QStringLiteral("xmark.circle.fill.svg"), QStringLiteral("close.svg")};
@@ -98,6 +99,7 @@ QString resourceForId(const QString &id) {
     if (id == QStringLiteral("document")) return QStringLiteral(":/icons/resources/icons/document.svg");
     if (id == QStringLiteral("image")) return QStringLiteral(":/icons/resources/icons/image.svg");
     if (id == QStringLiteral("file")) return QStringLiteral(":/icons/resources/icons/file.svg");
+    if (id == QStringLiteral("gear")) return QStringLiteral(":/icons/resources/icons/gear.svg");
     if (id == QStringLiteral("search")) return QStringLiteral(":/icons/resources/icons/search.svg");
     if (id == QStringLiteral("plus")) return QStringLiteral(":/icons/resources/icons/plus.svg");
     if (id == QStringLiteral("close")) return QStringLiteral(":/icons/resources/icons/close.svg");
