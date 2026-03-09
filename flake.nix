@@ -121,11 +121,9 @@
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             axel
-            bun
             clang
             cmake
             ninja
-            nodejs
             pkg-config
             qt6.qtbase
             qt6.qtdeclarative
@@ -142,7 +140,6 @@
             echo "DYX dev shell ready"
             echo "Backend build: zig build backend"
             echo "Backend tests: zig build test"
-            echo "Frontend dev: bun run dev"
             echo "Qt configure: cmake -S qt -B build/qt -G Ninja"
             echo "Qt build: cmake --build build/qt"
             echo "Qt run: ./build/qt/dyx-qt"

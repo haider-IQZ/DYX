@@ -2,12 +2,6 @@
 zig-out/
 build/
 result/
-node_modules/
-.next/
-out/
-dist/
-src-tauri/target/
-.cargo-target/
 .direnv/
 .env*.local
 .DS_Store
