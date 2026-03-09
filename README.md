@@ -9,9 +9,11 @@ The mission is simple:
 - keep the desktop shell in `Qt 6 + QML`
 - avoid summoning eleven web stacks for a button that says "Add URL"
 
-## Screenshot
+## Screenshots
 
 ![DYX screenshot](docs/dyx-screenshot.png)
+
+![DYX screenshot 2](docs/dyx-screenshot-2.png)
 
 ## What This Repo Actually Is
 
