@@ -7,6 +7,8 @@ Rectangle {
     id: root
 
     property var hostWindow
+    property bool tightLayout: false
+    property bool narrowLayout: false
 
     color: tokens.colors.background
 
@@ -88,7 +90,7 @@ Rectangle {
 
             ColumnLayout {
                 id: contentColumn
-                width: Math.min(parent.width - tokens.px(48), tokens.px(680))
+                width: Math.max(0, Math.min(parent.width - (tokens.spacing.xl * 2), tokens.contentMaxWidth))
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.leftMargin: tokens.spacing.xl
@@ -134,32 +136,46 @@ Rectangle {
                             Layout.fillWidth: true
                             radius: tokens.radiusLg
                             color: Qt.rgba(tokens.colors.muted.r, tokens.colors.muted.g, tokens.colors.muted.b, 0.35)
-                            implicitHeight: tokens.px(56)
+                            implicitHeight: directoryShell.implicitHeight + tokens.px(28)
 
-                            RowLayout {
+                            ColumnLayout {
+                                id: directoryShell
                                 anchors.fill: parent
                                 anchors.margins: tokens.px(14)
                                 spacing: tokens.px(12)
 
-                                IconGlyph {
-                                    iconName: "folder"
-                                    iconColor: tokens.colors.primary
-                                    font.pixelSize: tokens.px(18)
-                                }
-
-                                Text {
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    text: settingsModel ? settingsModel.defaultDownloadDir : "~/Downloads"
-                                    color: tokens.colors.foreground
-                                    font.pixelSize: tokens.type.bodySmall
-                                    elide: Text.ElideMiddle
-                                    renderType: Text.NativeRendering
+                                    spacing: tokens.px(12)
+
+                                    IconGlyph {
+                                        iconName: "folder"
+                                        iconColor: tokens.colors.primary
+                                        font.pixelSize: tokens.px(18)
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: settingsModel ? settingsModel.defaultDownloadDir : "~/Downloads"
+                                        color: tokens.colors.foreground
+                                        font.pixelSize: tokens.type.bodySmall
+                                        elide: Text.ElideMiddle
+                                        renderType: Text.NativeRendering
+                                    }
                                 }
 
-                                DyxButton {
-                                    text: "Choose Folder"
-                                    borderColor: "transparent"
-                                    onClicked: directoryPicker.openAt(settingsModel ? settingsModel.defaultDownloadDir : "")
+                                Item {
+                                    Layout.fillWidth: true
+                                    implicitHeight: chooseFolderButton.implicitHeight
+
+                                    DyxButton {
+                                        id: chooseFolderButton
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "Choose Folder"
+                                        borderColor: "transparent"
+                                        onClicked: directoryPicker.openAt(settingsModel ? settingsModel.defaultDownloadDir : "")
+                                    }
                                 }
                             }
                         }
@@ -209,7 +225,7 @@ Rectangle {
                                 readonly property bool selected: settingsModel && settingsModel.defaultConnections === modelData.connections
 
                                 Layout.fillWidth: true
-                                implicitHeight: tokens.px(56)
+                                implicitHeight: root.narrowLayout ? tokens.px(72) : tokens.px(56)
                                 leftPadding: tokens.px(16)
                                 rightPadding: tokens.px(16)
                                 hoverEnabled: true
@@ -226,7 +242,7 @@ Rectangle {
                                 }
 
                                 contentItem: RowLayout {
-                                    spacing: tokens.px(14)
+                                    spacing: root.narrowLayout ? tokens.px(10) : tokens.px(14)
 
                                     Rectangle {
                                         Layout.preferredWidth: tokens.px(28)
@@ -245,29 +261,61 @@ Rectangle {
                                         }
                                     }
 
-                                    RowLayout {
+                                    Item {
                                         Layout.fillWidth: true
-                                        spacing: tokens.px(8)
+                                        implicitHeight: root.narrowLayout ? narrowSpeedContent.implicitHeight : wideSpeedContent.implicitHeight
 
-                                        Text {
-                                            text: modelData.label
-                                            color: tokens.colors.foreground
-                                            font.pixelSize: tokens.type.bodySmall
-                                            font.weight: Font.DemiBold
-                                            renderType: Text.NativeRendering
+                                        RowLayout {
+                                            id: wideSpeedContent
+                                            anchors.fill: parent
+                                            visible: !root.narrowLayout
+                                            spacing: tokens.px(root.tightLayout ? 6 : 8)
+
+                                            Text {
+                                                text: modelData.label
+                                                color: tokens.colors.foreground
+                                                font.pixelSize: tokens.type.bodySmall
+                                                font.weight: Font.DemiBold
+                                                renderType: Text.NativeRendering
+                                            }
+
+                                            Text {
+                                                Layout.fillWidth: true
+                                                text: modelData.description + " - " + modelData.connections + " connections"
+                                                color: tokens.colors.mutedForeground
+                                                font.pixelSize: tokens.type.caption
+                                                elide: Text.ElideRight
+                                                renderType: Text.NativeRendering
+                                            }
                                         }
 
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: modelData.description + " - " + modelData.connections + " connections"
-                                            color: tokens.colors.mutedForeground
-                                            font.pixelSize: tokens.type.caption
-                                            elide: Text.ElideRight
-                                            renderType: Text.NativeRendering
+                                        ColumnLayout {
+                                            id: narrowSpeedContent
+                                            anchors.fill: parent
+                                            visible: root.narrowLayout
+                                            spacing: tokens.px(2)
+
+                                            Text {
+                                                text: modelData.label
+                                                color: tokens.colors.foreground
+                                                font.pixelSize: tokens.type.bodySmall
+                                                font.weight: Font.DemiBold
+                                                renderType: Text.NativeRendering
+                                            }
+
+                                            Text {
+                                                Layout.fillWidth: true
+                                                text: modelData.description + " - " + modelData.connections + " connections"
+                                                color: tokens.colors.mutedForeground
+                                                font.pixelSize: tokens.type.caption
+                                                elide: Text.ElideRight
+                                                renderType: Text.NativeRendering
+                                            }
                                         }
                                     }
 
                                     Text {
+                                        visible: !root.tightLayout
                                         text: selected ? "Selected" : ""
                                         color: tokens.colors.primary
                                         font.pixelSize: tokens.type.caption

@@ -28,6 +28,14 @@ DyxDialog {
     signal pathSelected(string path)
 
     dialogWidth: 720
+    dialogY: -1
+    readonly property int headerTitleSize: 18
+    readonly property int headerSubtitleSize: 12
+    readonly property int headerCloseIconSize: 18
+    readonly property int bodySidePadding: 24
+    readonly property int bodyTopPadding: 16
+    readonly property int bodyBottomPadding: 24
+    readonly property int bodySectionGap: 16
 
     Tokens { id: tokens }
 
@@ -101,52 +109,74 @@ DyxDialog {
 
     onOpened: refresh()
 
-    ColumnLayout {
+    Column {
         width: root.dialogWidth
         spacing: 0
 
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.margins: 24
-            Layout.bottomMargin: 0
-            spacing: 12
+        Item {
+            width: parent.width
+            height: tokens.windowChromeHeight
 
-            ColumnLayout {
-                spacing: 2
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: tokens.windowChromeSidePadding
+                anchors.rightMargin: tokens.windowChromeSidePadding
+                spacing: tokens.windowChromeGap
 
-                Text {
-                    text: "Choose Folder"
-                    color: tokens.colors.foreground
-                    font.pixelSize: 20
-                    font.weight: Font.DemiBold
-                    renderType: Text.NativeRendering
+                Item {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: parent.height
+
+                    Column {
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 0
+
+                        Text {
+                            text: "Choose Folder"
+                            color: tokens.colors.foreground
+                            font.pixelSize: root.headerTitleSize
+                            font.weight: Font.DemiBold
+                            renderType: Text.NativeRendering
+                        }
+
+                        Text {
+                            text: root.navigatedPath
+                            color: tokens.colors.mutedForeground
+                            font.pixelSize: root.headerSubtitleSize
+                            renderType: Text.NativeRendering
+                        }
+                    }
                 }
 
-                Text {
-                    text: root.navigatedPath
-                    color: tokens.colors.mutedForeground
-                    font.pixelSize: tokens.type.caption
-                    renderType: Text.NativeRendering
+                Item {
+                    Layout.preferredWidth: tokens.windowChromeHeight
+                    Layout.preferredHeight: tokens.windowChromeHeight
+
+                    IconGlyph {
+                        anchors.centerIn: parent
+                        iconName: "close"
+                        iconColor: tokens.colors.foreground
+                        font.pixelSize: root.headerCloseIconSize
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: root.close()
+                    }
                 }
-            }
-
-            Item { Layout.fillWidth: true }
-
-            DyxIconButton {
-                iconName: "close"
-                fillColor: "transparent"
-                strokeColor: "transparent"
-                onClicked: root.close()
             }
         }
 
         ColumnLayout {
-            Layout.fillWidth: true
-            Layout.margins: 24
-            spacing: 16
+            width: parent.width
+            spacing: root.bodySectionGap
 
             RowLayout {
                 Layout.fillWidth: true
+                Layout.leftMargin: root.bodySidePadding
+                Layout.rightMargin: root.bodySidePadding
+                Layout.topMargin: root.bodyTopPadding
                 spacing: 8
 
                 DyxButton {
@@ -204,6 +234,8 @@ DyxDialog {
             DyxInput {
                 id: searchInput
                 Layout.fillWidth: true
+                Layout.leftMargin: root.bodySidePadding
+                Layout.rightMargin: root.bodySidePadding
                 leadingIcon: "search"
                 placeholderText: "Search directories..."
                 text: root.searchQuery
@@ -212,14 +244,19 @@ DyxDialog {
 
             Rectangle {
                 Layout.fillWidth: true
+                Layout.leftMargin: root.bodySidePadding
+                Layout.rightMargin: root.bodySidePadding
                 radius: tokens.radiusLg
                 color: Qt.rgba(tokens.colors.muted.r, tokens.colors.muted.g, tokens.colors.muted.b, 0.45)
                 border.width: 0
-                implicitHeight: 54
+                implicitHeight: currentFolderRow.implicitHeight + (currentFolderMargins * 2)
+
+                readonly property int currentFolderMargins: 14
 
                 RowLayout {
+                    id: currentFolderRow
                     anchors.fill: parent
-                    anchors.margins: 14
+                    anchors.margins: parent.currentFolderMargins
                     spacing: 12
 
                     Rectangle {
@@ -261,6 +298,9 @@ DyxDialog {
 
             Rectangle {
                 Layout.fillWidth: true
+                Layout.leftMargin: root.bodySidePadding
+                Layout.rightMargin: root.bodySidePadding
+                Layout.bottomMargin: root.bodyBottomPadding
                 Layout.preferredHeight: 360
                 radius: tokens.radiusXl
                 color: Qt.rgba(tokens.colors.muted.r, tokens.colors.muted.g, tokens.colors.muted.b, 0.25)

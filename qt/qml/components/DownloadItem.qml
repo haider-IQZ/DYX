@@ -22,6 +22,9 @@ DyxCard {
     signal togglePause(string id)
     signal removeItem(string id)
     signal openFolder(string id)
+    readonly property int actionSpacing: tokens.px(4)
+    readonly property int actionTrayWidth: (tokens.iconButtonSize * 3) + (actionSpacing * 2)
+    readonly property bool canTogglePause: root.status === "downloading" || root.status === "paused"
 
     height: tokens.px(116)
     hovered: cardHover.hovered || actionRow.hovered
@@ -122,35 +125,56 @@ DyxCard {
                     }
                 }
 
-                RowLayout {
-                    id: actionRow
-                    property bool hovered: pauseButton.hovered || folderButton.hovered || deleteButton.hovered
-                    spacing: tokens.px(4)
-                    opacity: root.hovered ? 1 : 0
-                    visible: opacity > 0.01
+                Item {
+                    Layout.preferredWidth: root.actionTrayWidth
+                    Layout.minimumWidth: root.actionTrayWidth
+                    Layout.maximumWidth: root.actionTrayWidth
+                    implicitHeight: tokens.iconButtonSize
 
-                    Behavior on opacity { NumberAnimation { duration: tokens.motionBase } }
+                    RowLayout {
+                        id: actionRow
+                        property bool hovered: pauseButton.hovered || folderButton.hovered || deleteButton.hovered
+                        anchors.fill: parent
+                        spacing: root.actionSpacing
+                        opacity: root.hovered ? 1 : 0
+                        enabled: opacity > 0.01
 
-                    DyxIconButton {
-                        id: pauseButton
-                        visible: root.status === "downloading" || root.status === "paused"
-                        iconName: root.status === "downloading" ? "pause" : "play"
-                        onClicked: root.togglePause(root.downloadId)
-                    }
+                        Behavior on opacity { NumberAnimation { duration: tokens.motionBase } }
 
-                    DyxIconButton {
-                        id: folderButton
-                        iconName: "folder"
-                        fillColor: "transparent"
-                        strokeColor: "transparent"
-                        onClicked: root.openFolder(root.downloadId)
-                    }
+                        Item {
+                            Layout.preferredWidth: tokens.iconButtonSize
+                            Layout.preferredHeight: tokens.iconButtonSize
 
-                    DyxIconButton {
-                        id: deleteButton
-                        iconName: "trash"
-                        destructive: true
-                        onClicked: root.removeItem(root.downloadId)
+                            DyxIconButton {
+                                id: pauseButton
+                                anchors.fill: parent
+                                visible: root.canTogglePause
+                                enabled: root.canTogglePause && actionRow.enabled
+                                iconName: root.status === "downloading" ? "pause" : "play"
+                                fillColor: "transparent"
+                                strokeColor: "transparent"
+                                onClicked: root.togglePause(root.downloadId)
+                            }
+                        }
+
+                        DyxIconButton {
+                            id: folderButton
+                            iconName: "folder"
+                            fillColor: "transparent"
+                            strokeColor: "transparent"
+                            enabled: actionRow.enabled
+                            onClicked: root.openFolder(root.downloadId)
+                        }
+
+                        DyxIconButton {
+                            id: deleteButton
+                            iconName: "trash"
+                            iconColor: tokens.colors.red
+                            fillColor: "transparent"
+                            strokeColor: "transparent"
+                            enabled: actionRow.enabled
+                            onClicked: root.removeItem(root.downloadId)
+                        }
                     }
                 }
             }
@@ -169,40 +193,50 @@ DyxCard {
                 Layout.fillWidth: true
                 spacing: tokens.px(12)
 
-                Text {
-                    text: root.sizeText
-                    color: tokens.colors.mutedForeground
-                    font.pixelSize: tokens.type.caption
-                    renderType: Text.NativeRendering
-                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: tokens.px(12)
 
-                Text {
-                    text: root.progressText
-                    color: tokens.colors.mutedForeground
-                    font.pixelSize: tokens.type.caption
-                    renderType: Text.NativeRendering
-                }
+                    Text {
+                        text: root.sizeText
+                        color: tokens.colors.mutedForeground
+                        font.pixelSize: tokens.type.caption
+                        renderType: Text.NativeRendering
+                    }
 
-                Text {
-                    visible: root.speedText.length > 0
-                    text: root.speedText
-                    color: tokens.colors.blue
-                    font.pixelSize: tokens.type.caption
-                    font.weight: Font.Medium
-                    renderType: Text.NativeRendering
-                }
+                    Text {
+                        text: root.progressText
+                        color: tokens.colors.mutedForeground
+                        font.pixelSize: tokens.type.caption
+                        renderType: Text.NativeRendering
+                    }
 
-                Text {
-                    visible: root.etaText.length > 0
-                    text: "ETA: " + root.etaText
-                    color: tokens.colors.mutedForeground
-                    font.pixelSize: tokens.type.caption
-                    renderType: Text.NativeRendering
-                }
+                    Text {
+                        visible: root.speedText.length > 0
+                        text: root.speedText
+                        color: tokens.colors.blue
+                        font.pixelSize: tokens.type.caption
+                        font.weight: Font.Medium
+                        renderType: Text.NativeRendering
+                    }
 
-                Item { Layout.fillWidth: true }
+                    Text {
+                        visible: root.etaText.length > 0
+                        Layout.fillWidth: true
+                        text: "ETA: " + root.etaText
+                        color: tokens.colors.mutedForeground
+                        font.pixelSize: tokens.type.caption
+                        elide: Text.ElideRight
+                        renderType: Text.NativeRendering
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
 
                 RowLayout {
+                    id: statusMetaRow
+                    Layout.preferredWidth: implicitWidth
+                    Layout.minimumWidth: implicitWidth
                     spacing: tokens.px(8)
 
                     IconGlyph {
@@ -217,6 +251,7 @@ DyxCard {
                         color: root.statusColor()
                         font.pixelSize: tokens.type.caption
                         font.weight: Font.Medium
+                        elide: Text.ElideRight
                         renderType: Text.NativeRendering
                     }
 
@@ -224,6 +259,7 @@ DyxCard {
                         text: root.connectionsText
                         color: tokens.colors.mutedForeground
                         font.pixelSize: tokens.type.caption
+                        elide: Text.ElideRight
                         renderType: Text.NativeRendering
                     }
                 }

@@ -25,6 +25,7 @@ pub const Store = struct {
     }
 
     pub fn append(self: *Store, item: models.StoredHistoryItem) !void {
+        _ = self.removeByOutputPathInternal(item.item.outputPath);
         try self.items.append(try item.cloneOwned(self.allocator));
         try self.save();
     }
@@ -39,6 +40,14 @@ pub const Store = struct {
             }
         }
         return false;
+    }
+
+    pub fn removeByOutputPath(self: *Store, output_path: []const u8) !usize {
+        const removed = self.removeByOutputPathInternal(output_path);
+        if (removed > 0) {
+            try self.save();
+        }
+        return removed;
     }
 
     pub fn findById(self: *Store, id: []const u8) ?*const models.StoredHistoryItem {
@@ -75,9 +84,33 @@ pub const Store = struct {
         var parsed = try std.json.parseFromSlice([]models.StoredHistoryItem, self.allocator, bytes, .{});
         defer parsed.deinit();
 
+        var changed = false;
         for (parsed.value) |item| {
+            if (self.removeByOutputPathInternal(item.item.outputPath) > 0) {
+                changed = true;
+            }
             try self.items.append(try item.cloneOwned(self.allocator));
         }
+
+        if (changed) {
+            try self.save();
+        }
+    }
+
+    fn removeByOutputPathInternal(self: *Store, output_path: []const u8) usize {
+        var removed: usize = 0;
+        var index: usize = 0;
+        while (index < self.items.items.len) {
+            const existing = &self.items.items[index];
+            if (std.mem.eql(u8, existing.item.outputPath, output_path)) {
+                existing.deinit(self.allocator);
+                _ = self.items.orderedRemove(index);
+                removed += 1;
+                continue;
+            }
+            index += 1;
+        }
+        return removed;
     }
 };
 

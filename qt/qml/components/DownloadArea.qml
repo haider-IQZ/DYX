@@ -7,6 +7,9 @@ Rectangle {
     id: root
 
     property var downloadsModel
+    property bool tightLayout: false
+    property bool narrowLayout: false
+    property string searchQuery: ""
     signal addNew()
     signal togglePause(string id)
     signal removeItem(string id)
@@ -23,16 +26,71 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: tokens.contentHeaderHeight
+            Layout.preferredHeight: headerContent.implicitHeight + tokens.spacing.lg * 2
             color: "transparent"
 
-            RowLayout {
+            ColumnLayout {
+                id: headerContent
                 anchors.fill: parent
                 anchors.leftMargin: tokens.spacing.xl
                 anchors.rightMargin: tokens.spacing.xl
-                spacing: tokens.spacing.lg
+                anchors.topMargin: tokens.spacing.lg
+                anchors.bottomMargin: tokens.spacing.lg
+                spacing: root.tightLayout ? tokens.spacing.sm : tokens.spacing.lg
 
                 RowLayout {
+                    id: wideHeaderRow
+                    visible: !root.tightLayout
+                    Layout.fillWidth: true
+                    spacing: tokens.spacing.lg
+
+                    RowLayout {
+                        id: titleGroup
+                        spacing: tokens.spacing.lg
+
+                        Text {
+                            text: "Downloads"
+                            color: tokens.colors.foreground
+                            font.pixelSize: tokens.type.sectionHeading
+                            font.weight: Font.DemiBold
+                            renderType: Text.NativeRendering
+                        }
+
+                        Text {
+                            text: {
+                                const count = downloadsModel ? downloadsModel.count : 0
+                                return count + (count === 1 ? " item" : " items")
+                            }
+                            color: tokens.colors.mutedForeground
+                            font.pixelSize: tokens.type.bodySmall
+                            renderType: Text.NativeRendering
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    DyxInput {
+                        text: root.searchQuery
+                        Layout.preferredWidth: 256
+                        Layout.minimumWidth: 180
+                        Layout.maximumWidth: 256
+                        leadingIcon: "search"
+                        placeholderText: "Search downloads..."
+                        onTextChanged: {
+                            root.searchQuery = text
+                            root.searchChanged(text)
+                        }
+                    }
+
+                    DyxButton {
+                        text: "Add URL"
+                        onClicked: root.addNew()
+                    }
+                }
+
+                RowLayout {
+                    visible: root.tightLayout
+                    Layout.fillWidth: true
                     spacing: tokens.spacing.lg
 
                     Text {
@@ -54,19 +112,50 @@ Rectangle {
                     }
                 }
 
-                Item { Layout.fillWidth: true }
+                RowLayout {
+                    visible: root.tightLayout && !root.narrowLayout
+                    Layout.fillWidth: true
+                    spacing: tokens.spacing.md
 
-                DyxInput {
-                    id: searchInput
-                    Layout.preferredWidth: tokens.px(256)
-                    leadingIcon: "search"
-                    placeholderText: "Search downloads..."
-                    onTextChanged: root.searchChanged(text)
+                    DyxInput {
+                        text: root.searchQuery
+                        Layout.fillWidth: true
+                        leadingIcon: "search"
+                        placeholderText: "Search downloads..."
+                        onTextChanged: {
+                            root.searchQuery = text
+                            root.searchChanged(text)
+                        }
+                    }
+
+                    DyxButton {
+                        text: "Add URL"
+                        onClicked: root.addNew()
+                    }
                 }
 
-                DyxButton {
-                    text: "Add URL"
-                    onClicked: root.addNew()
+                DyxInput {
+                    visible: root.narrowLayout
+                    text: root.searchQuery
+                    Layout.fillWidth: true
+                    leadingIcon: "search"
+                    placeholderText: "Search downloads..."
+                    onTextChanged: {
+                        root.searchQuery = text
+                        root.searchChanged(text)
+                    }
+                }
+
+                RowLayout {
+                    visible: root.narrowLayout
+                    Layout.fillWidth: true
+
+                    Item { Layout.fillWidth: true }
+
+                    DyxButton {
+                        text: "Add URL"
+                        onClicked: root.addNew()
+                    }
                 }
             }
         }
@@ -100,7 +189,7 @@ Rectangle {
                         }
 
                         Item {
-                            width: tokens.px(300)
+                            width: 300
                             implicitHeight: emptyStateTextStack.implicitHeight
 
                             Column {
@@ -116,7 +205,7 @@ Rectangle {
                                     font.pixelSize: tokens.px(18)
                                     font.weight: Font.Medium
                                     horizontalAlignment: Text.AlignHCenter
-                                    width: tokens.px(260)
+                                    width: 260
                                     renderType: Text.NativeRendering
                                 }
 

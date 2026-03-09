@@ -18,8 +18,18 @@ QtObject {
     readonly property int radiusXl: px(14)
 
     readonly property int borderWidth: 1
-    readonly property int titleBarHeight: px(48)
-    readonly property int sidebarWidth: px(224)
+    readonly property int windowChromeHeight: 48
+    readonly property int windowChromeSidePadding: 16
+    readonly property int windowChromeGap: 8
+    readonly property int windowChromeButtonSize: 12
+    readonly property int windowChromeIconSize: 8
+    readonly property int titleBarHeight: windowChromeHeight
+    readonly property int sidebarExpandedWidth: 224
+    readonly property int sidebarCompactWidth: 88
+    readonly property int contentMaxWidth: 680
+    readonly property int responsiveCompactWindow: 1180
+    readonly property int responsiveTightContent: 780
+    readonly property int responsiveNarrowContent: 680
     readonly property int contentHeaderHeight: px(56)
     readonly property int iconButtonSize: px(34)
     readonly property int statsIconSize: px(32)

@@ -83,6 +83,18 @@ void BackendClient::refresh() {
 
     if (downloadsResponse.value("ok").toBool()) {
         m_downloads = downloadsResponse.value("result").toArray();
+        QSet<QString> activeIds;
+        for (const auto &item : m_downloads) {
+            activeIds.insert(item.toObject().value(QStringLiteral("id")).toString());
+        }
+
+        for (auto it = m_pendingDeleteIds.begin(); it != m_pendingDeleteIds.end();) {
+            if (activeIds.contains(*it)) {
+                ++it;
+            } else {
+                it = m_pendingDeleteIds.erase(it);
+            }
+        }
     }
     if (historyResponse.value("ok").toBool()) {
         m_history = historyResponse.value("result").toArray();
@@ -169,13 +181,39 @@ void BackendClient::deleteItem(const QString &id) {
     }
 
     if (isActive) {
-        m_pendingDeletes.insert(id, item.outputPath);
-        sendRequest(QStringLiteral("cancelDownload"), QJsonObject{{QStringLiteral("id"), id}});
+        const auto response = sendRequest(QStringLiteral("deleteDownload"), QJsonObject{{QStringLiteral("id"), id}});
+        if (!response.value(QStringLiteral("ok")).toBool()) {
+            return;
+        }
+
+        if (response.value(QStringLiteral("result")).toObject().value(QStringLiteral("deleted")).toBool()) {
+            m_pendingDeleteIds.insert(id);
+            rebuildDownloads();
+            updateStats();
+        } else {
+            setErrorMessage(QStringLiteral("Could not delete download right now."));
+        }
         return;
     }
 
     sendRequest(QStringLiteral("deleteFile"), QJsonObject{{QStringLiteral("path"), item.outputPath}});
-    sendRequest(QStringLiteral("removeHistoryItem"), QJsonObject{{QStringLiteral("id"), id}});
+    const auto response = sendRequest(QStringLiteral("removeHistoryByPath"), QJsonObject{{QStringLiteral("path"), item.outputPath}});
+    if (!response.value(QStringLiteral("ok")).toBool()) {
+        return;
+    }
+
+    if (response.value(QStringLiteral("result")).toObject().value(QStringLiteral("removed")).toInt() > 0) {
+        QJsonArray filtered;
+        for (const auto &value : m_history) {
+            const auto object = value.toObject();
+            if (object.value(QStringLiteral("outputPath")).toString() != item.outputPath) {
+                filtered.append(object);
+            }
+        }
+        m_history = filtered;
+        rebuildDownloads();
+        updateStats();
+    }
 }
 
 void BackendClient::openFolder(const QString &id) {
@@ -382,22 +420,13 @@ void BackendClient::handleEvent(const QJsonObject &event) {
             }
         }
         m_downloads = filtered;
+        m_pendingDeleteIds.remove(id);
         rebuildDownloads();
         return;
     }
 
     if (eventName == QStringLiteral("historyChanged")) {
         m_history = payload.toArray();
-        for (const auto item : m_history) {
-            const auto object = item.toObject();
-            const QString id = object.value(QStringLiteral("id")).toString();
-            if (!m_pendingDeletes.contains(id)) {
-                continue;
-            }
-            const QString path = m_pendingDeletes.take(id);
-            sendRequest(QStringLiteral("deleteFile"), QJsonObject{{QStringLiteral("path"), path}});
-            sendRequest(QStringLiteral("removeHistoryItem"), QJsonObject{{QStringLiteral("id"), id}});
-        }
         rebuildDownloads();
         return;
     }
@@ -516,15 +545,36 @@ void BackendClient::rebuildDownloads() {
     };
 
     for (const auto item : m_downloads) {
-        appendEntry(item.toObject());
-    }
-
-    for (const auto item : m_history) {
         const auto object = item.toObject();
-        if (activeOutputPaths.contains(object.value(QStringLiteral("outputPath")).toString())) {
+        if (m_pendingDeleteIds.contains(object.value(QStringLiteral("id")).toString())) {
             continue;
         }
         appendEntry(object);
+    }
+
+    QHash<QString, QJsonObject> latestHistoryByOutputPath;
+    for (const auto item : m_history) {
+        const auto object = item.toObject();
+        const QString outputPath = object.value(QStringLiteral("outputPath")).toString();
+        if (activeOutputPaths.contains(outputPath)) {
+            continue;
+        }
+
+        const auto existing = latestHistoryByOutputPath.constFind(outputPath);
+        if (existing == latestHistoryByOutputPath.constEnd()) {
+            latestHistoryByOutputPath.insert(outputPath, object);
+            continue;
+        }
+
+        const QDateTime nextStartedAt = parseDateTime(object.value(QStringLiteral("startedAt")));
+        const QDateTime existingStartedAt = parseDateTime(existing.value().value(QStringLiteral("startedAt")));
+        if (nextStartedAt >= existingStartedAt) {
+            latestHistoryByOutputPath.insert(outputPath, object);
+        }
+    }
+
+    for (auto it = latestHistoryByOutputPath.cbegin(); it != latestHistoryByOutputPath.cend(); ++it) {
+        appendEntry(it.value());
     }
 
     std::sort(next.begin(), next.end(), [](const DownloadEntry &lhs, const DownloadEntry &rhs) {

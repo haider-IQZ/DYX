@@ -13,10 +13,18 @@ ApplicationWindow {
     color: tokens.colors.background
     title: "DYX"
     flags: Qt.Window | Qt.FramelessWindowHint
+    minimumWidth: 1280
+    minimumHeight: 820
 
     property string activeFilter: "all"
     property string activePane: "downloads"
     property string defaultSavePath: settingsModel ? settingsModel.defaultDownloadDir : "~/Downloads"
+    readonly property real effectiveWindowWidth: width / Math.max(tokens.scale, 0.01)
+    readonly property bool compactSidebar: effectiveWindowWidth < tokens.responsiveCompactWindow
+    readonly property int sidebarVisualWidth: compactSidebar ? tokens.sidebarCompactWidth : tokens.sidebarExpandedWidth
+    readonly property real effectiveContentWidth: effectiveWindowWidth - sidebarVisualWidth
+    readonly property bool tightContent: effectiveContentWidth < tokens.responsiveTightContent
+    readonly property bool narrowContent: effectiveContentWidth < tokens.responsiveNarrowContent
 
     Tokens { id: tokens }
 
@@ -53,12 +61,13 @@ ApplicationWindow {
             spacing: 0
 
             Sidebar {
-                Layout.preferredWidth: tokens.sidebarWidth
-                Layout.minimumWidth: tokens.sidebarWidth
-                Layout.maximumWidth: tokens.sidebarWidth
+                Layout.preferredWidth: window.sidebarVisualWidth
+                Layout.minimumWidth: window.sidebarVisualWidth
+                Layout.maximumWidth: window.sidebarVisualWidth
                 Layout.fillHeight: true
                 activeFilter: window.activeFilter
                 settingsActive: window.activePane === "settings"
+                compactMode: window.compactSidebar
                 activeCount: backend ? backend.activeCount : 0
                 totalCount: backend ? backend.totalCount : 0
                 downloadSpeedText: backend ? backend.downloadSpeedText : "0 B/s"
@@ -77,6 +86,8 @@ ApplicationWindow {
 
                 DownloadArea {
                     downloadsModel: downloadModel
+                    tightLayout: window.tightContent
+                    narrowLayout: window.narrowContent
                     onAddNew: addDialog.open()
                     onTogglePause: function(id) {
                         if (backend) backend.togglePause(id)
@@ -94,6 +105,8 @@ ApplicationWindow {
 
                 SettingsArea {
                     hostWindow: window
+                    tightLayout: window.tightContent
+                    narrowLayout: window.narrowContent
                 }
             }
         }

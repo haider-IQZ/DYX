@@ -62,6 +62,12 @@ fn dispatch(
         const cancelled = try app.downloads.cancelDownload(request.id);
         return models.jsonStringifyAlloc(allocator, .{ .cancelled = cancelled }, .{});
     }
+    if (std.mem.eql(u8, method, "deleteDownload")) {
+        const request = try parseOwnedIdRequest(allocator, params_value orelse return error.MissingParams);
+        defer allocator.free(request.id);
+        const deleted = try app.downloads.deleteDownload(request.id);
+        return models.jsonStringifyAlloc(allocator, .{ .deleted = deleted }, .{});
+    }
     if (std.mem.eql(u8, method, "retryDownload")) {
         const request = try parseOwnedIdRequest(allocator, params_value orelse return error.MissingParams);
         defer allocator.free(request.id);
@@ -71,6 +77,15 @@ fn dispatch(
         const request = try parseOwnedIdRequest(allocator, params_value orelse return error.MissingParams);
         defer allocator.free(request.id);
         const removed = try app.history_store.removeById(request.id);
+        const history_json = try app.historyJson(app.allocator);
+        defer app.allocator.free(history_json);
+        try app.emitEvent("historyChanged", history_json);
+        return models.jsonStringifyAlloc(allocator, .{ .removed = removed }, .{});
+    }
+    if (std.mem.eql(u8, method, "removeHistoryByPath")) {
+        const request = try parseOwnedPathRequest(allocator, params_value orelse return error.MissingParams);
+        defer allocator.free(request.path);
+        const removed = try app.history_store.removeByOutputPath(request.path);
         const history_json = try app.historyJson(app.allocator);
         defer app.allocator.free(history_json);
         try app.emitEvent("historyChanged", history_json);

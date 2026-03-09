@@ -8,14 +8,15 @@ Rectangle {
 
     property string activeFilter: "all"
     property bool settingsActive: false
+    property bool compactMode: false
     property int activeCount: 0
     property int totalCount: 0
     property string downloadSpeedText: "0 B/s"
     signal filterSelected(string filter)
     signal settingsSelected()
 
-    width: tokens.sidebarWidth
-    implicitWidth: tokens.sidebarWidth
+    width: compactMode ? tokens.sidebarCompactWidth : tokens.sidebarExpandedWidth
+    implicitWidth: width
     color: tokens.colors.card
 
     Tokens { id: tokens }
@@ -26,8 +27,9 @@ Rectangle {
 
         Rectangle {
             id: statsSection
+            visible: !root.compactMode
             Layout.fillWidth: true
-            Layout.preferredHeight: statsCard.implicitHeight + tokens.spacing.lg * 2
+            Layout.preferredHeight: root.compactMode ? 0 : statsCard.implicitHeight + tokens.spacing.lg * 2
             color: "transparent"
             border.width: 0
 
@@ -110,7 +112,7 @@ Rectangle {
 
             Flickable {
                 anchors.fill: parent
-                anchors.margins: tokens.spacing.md
+                anchors.margins: root.compactMode ? tokens.spacing.sm : tokens.spacing.md
                 contentWidth: width
                 contentHeight: navColumn.implicitHeight
                 boundsBehavior: Flickable.StopAtBounds
@@ -122,6 +124,7 @@ Rectangle {
                     spacing: tokens.px(4)
 
                     Text {
+                        visible: !root.compactMode
                         text: "STATUS"
                         color: tokens.colors.mutedForeground
                         font.pixelSize: tokens.type.micro
@@ -129,14 +132,15 @@ Rectangle {
                         renderType: Text.NativeRendering
                     }
 
-                    DyxSidebarItem { width: parent.width; text: "All Downloads"; iconName: "download"; active: !root.settingsActive && root.activeFilter === "all"; onClicked: root.filterSelected("all") }
-                    DyxSidebarItem { width: parent.width; text: "Downloading"; iconName: "activity"; active: !root.settingsActive && root.activeFilter === "downloading"; onClicked: root.filterSelected("downloading") }
-                    DyxSidebarItem { width: parent.width; text: "Completed"; iconName: "check"; active: !root.settingsActive && root.activeFilter === "completed"; onClicked: root.filterSelected("completed") }
-                    DyxSidebarItem { width: parent.width; text: "Queued"; iconName: "clock"; active: !root.settingsActive && root.activeFilter === "queued"; onClicked: root.filterSelected("queued") }
+                    DyxSidebarItem { width: parent.width; compactMode: root.compactMode; text: "All Downloads"; iconName: "download"; active: !root.settingsActive && root.activeFilter === "all"; onClicked: root.filterSelected("all") }
+                    DyxSidebarItem { width: parent.width; compactMode: root.compactMode; text: "Downloading"; iconName: "activity"; active: !root.settingsActive && root.activeFilter === "downloading"; onClicked: root.filterSelected("downloading") }
+                    DyxSidebarItem { width: parent.width; compactMode: root.compactMode; text: "Completed"; iconName: "check"; active: !root.settingsActive && root.activeFilter === "completed"; onClicked: root.filterSelected("completed") }
+                    DyxSidebarItem { width: parent.width; compactMode: root.compactMode; text: "Queued"; iconName: "clock"; active: !root.settingsActive && root.activeFilter === "queued"; onClicked: root.filterSelected("queued") }
 
                     Item { height: tokens.spacing.lg; width: 1 }
 
                     Text {
+                        visible: !root.compactMode
                         text: "CATEGORIES"
                         color: tokens.colors.mutedForeground
                         font.pixelSize: tokens.type.micro
@@ -144,10 +148,10 @@ Rectangle {
                         renderType: Text.NativeRendering
                     }
 
-                    DyxSidebarItem { width: parent.width; text: "Archives"; iconName: "archive"; active: !root.settingsActive && root.activeFilter === "archives"; onClicked: root.filterSelected("archives") }
-                    DyxSidebarItem { width: parent.width; text: "Videos"; iconName: "video"; active: !root.settingsActive && root.activeFilter === "videos"; onClicked: root.filterSelected("videos") }
-                    DyxSidebarItem { width: parent.width; text: "Audio"; iconName: "audio"; active: !root.settingsActive && root.activeFilter === "audio"; onClicked: root.filterSelected("audio") }
-                    DyxSidebarItem { width: parent.width; text: "Documents"; iconName: "document"; active: !root.settingsActive && root.activeFilter === "documents"; onClicked: root.filterSelected("documents") }
+                    DyxSidebarItem { width: parent.width; compactMode: root.compactMode; text: "Archives"; iconName: "archive"; active: !root.settingsActive && root.activeFilter === "archives"; onClicked: root.filterSelected("archives") }
+                    DyxSidebarItem { width: parent.width; compactMode: root.compactMode; text: "Videos"; iconName: "video"; active: !root.settingsActive && root.activeFilter === "videos"; onClicked: root.filterSelected("videos") }
+                    DyxSidebarItem { width: parent.width; compactMode: root.compactMode; text: "Audio"; iconName: "audio"; active: !root.settingsActive && root.activeFilter === "audio"; onClicked: root.filterSelected("audio") }
+                    DyxSidebarItem { width: parent.width; compactMode: root.compactMode; text: "Documents"; iconName: "document"; active: !root.settingsActive && root.activeFilter === "documents"; onClicked: root.filterSelected("documents") }
                 }
             }
         }
@@ -159,9 +163,12 @@ Rectangle {
             border.width: 0
 
             DyxSidebarItem {
-                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.left: parent.left
+                anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                width: tokens.px(180)
+                anchors.leftMargin: tokens.spacing.md
+                anchors.rightMargin: tokens.spacing.md
+                compactMode: root.compactMode
                 text: "Settings"
                 iconName: "gear"
                 active: root.settingsActive

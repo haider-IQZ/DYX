@@ -7,11 +7,11 @@ Rectangle {
     id: root
 
     required property var appWindow
-    readonly property int chromeButtonSize: 12
-    readonly property int chromeIconSize: 8
+    readonly property int chromeButtonSize: tokens.windowChromeButtonSize
+    readonly property int chromeIconSize: tokens.windowChromeIconSize
 
     color: tokens.colors.card
-    height: 48
+    height: tokens.windowChromeHeight
     border.width: 0
 
     Tokens { id: tokens }
@@ -29,12 +29,12 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
-        spacing: 8
+        anchors.leftMargin: tokens.windowChromeSidePadding
+        anchors.rightMargin: tokens.windowChromeSidePadding
+        spacing: tokens.windowChromeGap
 
         RowLayout {
-            spacing: 8
+            spacing: tokens.windowChromeGap
 
             Repeater {
                 model: [
@@ -84,7 +84,7 @@ Rectangle {
         Item { Layout.fillWidth: true }
 
         RowLayout {
-            spacing: 8
+            spacing: tokens.windowChromeGap
 
             Text {
                 text: "DYX"

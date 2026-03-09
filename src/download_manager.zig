@@ -15,6 +15,7 @@ const DownloadRuntime = struct {
     pid: ?std.posix.pid_t = null,
     cancel_mutex: std.Thread.Mutex = .{},
     cancel_requested: bool = false,
+    delete_requested: bool = false,
     stderr_mutex: std.Thread.Mutex = .{},
     stderr_buffer: std.array_list.Managed(u8),
 
@@ -238,9 +239,38 @@ pub const DownloadManager = struct {
         return false;
     }
 
+    pub fn deleteDownload(self: *DownloadManager, id: []const u8) !bool {
+        self.mutex.lock();
+        const record = self.findRecordByIdLocked(id) orelse {
+            self.mutex.unlock();
+            return false;
+        };
+        const runtime = record.runtime;
+        self.mutex.unlock();
+
+        if (runtime) |state| {
+            state.cancel_mutex.lock();
+            state.cancel_requested = true;
+            state.delete_requested = true;
+            const pid = state.pid;
+            state.cancel_mutex.unlock();
+            if (pid) |process_id| {
+                std.posix.kill(process_id, std.posix.SIG.TERM) catch {};
+            }
+            return true;
+        }
+
+        return false;
+    }
+
     pub fn retryDownload(self: *DownloadManager, id: []const u8) ![]u8 {
         if (self.history_store.findById(id)) |entry| {
-            return self.startDownload(entry.request);
+            const result = try self.startDownload(entry.request);
+            const removed = try self.history_store.removeByOutputPath(entry.item.outputPath);
+            if (removed > 0) {
+                try self.emitHistoryChanged();
+            }
+            return result;
         }
 
         self.mutex.lock();
@@ -339,10 +369,17 @@ pub const DownloadManager = struct {
         var history_item: ?models.StoredHistoryItem = null;
         defer if (history_item) |*value| value.deinit(self.allocator);
         var removed_id: ?[]const u8 = null;
+        var removed_output_path: ?[]u8 = null;
+        var delete_after_cancel = false;
 
         self.mutex.lock();
         if (findRecordIndexByIdLocked(self, id)) |index| {
             var record = self.records.items[index];
+            if (record.runtime) |runtime| {
+                runtime.cancel_mutex.lock();
+                delete_after_cancel = runtime.delete_requested;
+                runtime.cancel_mutex.unlock();
+            }
             record.item.status = status;
             if (status == .completed) record.item.progressPercent = 100;
             if (status == .completed) {
@@ -358,6 +395,9 @@ pub const DownloadManager = struct {
                 .request = try record.request.cloneOwned(self.allocator),
             };
             removed_id = try self.allocator.dupe(u8, record.item.id);
+            if (delete_after_cancel) {
+                removed_output_path = try self.allocator.dupe(u8, record.item.outputPath);
+            }
             _ = self.records.orderedRemove(index);
             record.item.deinit(self.allocator);
             record.request.deinit(self.allocator);
@@ -368,10 +408,21 @@ pub const DownloadManager = struct {
         }
         self.mutex.unlock();
         defer if (removed_id) |value| self.allocator.free(value);
+        defer if (removed_output_path) |value| self.allocator.free(value);
 
         if (history_item) |value| {
+            if (delete_after_cancel and status == .cancelled) {
+                _ = try self.history_store.removeByOutputPath(value.item.outputPath);
+                try self.emitHistoryChanged();
+            } else {
             try self.history_store.append(value);
             try self.emitHistoryChanged();
+            }
+        }
+        if (delete_after_cancel) {
+            if (removed_output_path) |path| {
+                axel.deleteFile(path) catch {};
+            }
         }
         try self.writeShutdownRecoverySnapshot();
         if (removed_id) |value| {

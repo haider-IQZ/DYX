@@ -8,8 +8,9 @@
 #include <QJsonObject>
 #include <QObject>
 #include <QProcess>
-#include <QVariantList>
+#include <QSet>
 #include <QStringList>
+#include <QVariantList>
 
 class BackendClient final : public QObject {
     Q_OBJECT
@@ -61,11 +62,6 @@ signals:
     void directoryPicked(const QString &path);
 
 private:
-    struct PendingDelete {
-        QString id;
-        QString outputPath;
-    };
-
     void launchBackend();
     QString resolveBackendBinary() const;
     void handleStdout();
@@ -96,7 +92,7 @@ private:
     QHash<QString, QJsonObject> m_responses;
     QJsonArray m_downloads;
     QJsonArray m_history;
-    QHash<QString, QString> m_pendingDeletes;
+    QSet<QString> m_pendingDeleteIds;
     QList<DownloadEntry> m_latestMergedItems;
     DownloadListModel m_downloadsModel;
     SettingsModel m_settingsModel;
