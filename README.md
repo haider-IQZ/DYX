@@ -1,6 +1,6 @@
 # DYX
 
-`DYX` is a native Linux download manager for `axel`.
+`DYX` is a native Linux download manager built on  `axel`.
 
 The mission is simple:
 
