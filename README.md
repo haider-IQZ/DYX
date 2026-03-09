@@ -1,34 +1,52 @@
 # DYX
 
-Linux download managers kept showing up dressed like a committee compromise from 2009, so this repo is the correction.
+`DYX` is a native Linux download manager for `axel`.
 
-`DYX` is a desktop app for `axel` with:
+The mission is simple:
 
-- `Zig` doing the real download/backend work
-- `Qt 6 + QML` handling the native shell
+- stop looking like a dead university FTP client
+- keep the fast part in `Zig`
+- keep the desktop shell in `Qt 6 + QML`
+- avoid summoning eleven web stacks for a button that says "Add URL"
 
-## What Lives Here
+## Screenshot
+
+![DYX screenshot](docs/dyx-screenshot.png)
+
+## What This Repo Actually Is
 
 - `src/`
-  The Zig backend. This is the part that actually talks to `axel`, tracks downloads, saves settings/history, and emits events.
+  The Zig backend. It talks to `axel`, tracks downloads, saves settings, keeps history, and cleans up partial files without acting like that is a premium feature.
 - `qt/`
-  The native shell and backend bridge. This is the app path that `nix run` builds now.
+  The real app UI. Native shell, QML components, backend bridge, all the stuff users actually touch.
 - `build.zig`
-  Backend-only Zig build file. The downloader core still lives here.
+  Backend build entrypoint.
+- `flake.nix`
+  The "please just give me a working environment" file.
+
+## Why This Exists
+
+Because too many Linux download managers are either:
+
+- ugly in a hostile way
+- abandoned in a spiritual way
+- electron apps pretending that 600 MB of RAM is normal behavior
+
+`DYX` is trying to be none of those.
 
 ## Run It
 
-The civilized way:
+The civilized option:
 
 ```bash
 nix run "path:$PWD"
 ```
 
-That should build and launch the packaged Qt app with the Zig backend wired in.
+That builds and launches the packaged Qt app with the Zig backend wired up.
 
-## Work On It
+## Develop It
 
-Enter the shell:
+Open the dev shell:
 
 ```bash
 nix develop "path:$PWD"
@@ -46,7 +64,7 @@ Run backend tests:
 zig build test
 ```
 
-Build the native Qt shell:
+Build and run the Qt app:
 
 ```bash
 cmake -S qt -B build/qt -G Ninja
@@ -56,7 +74,7 @@ cmake --build build/qt
 
 ## Stack
 
-Current live stack:
+The stack is blessedly short:
 
 - `Zig`
 - `Qt 6`
@@ -64,22 +82,21 @@ Current live stack:
 - `axel`
 - `Nix`
 
-## Wayland
+## Current Status
 
-Wayland vs X11 is now mostly a Qt question, which is already an improvement for everyone involved.
-
-## Why Axel
-
-Because `axel` already knows how to do the hard part, and I would rather build a good app around a proven downloader than spend six months reinventing a less reliable one out of ego.
-
-## Status
-
-This is alpha software, but it is real alpha software:
+This is alpha, but the good kind of alpha where things already do real work:
 
 - downloads work
 - pause/resume works
-- delete cleans up partials and `.st` files
-- settings and history persist
-- the Qt shell compiles and packages
+- delete removes partial files and `.st` sidecars
+- settings persist
+- history persists
+- the Qt shell builds and packages cleanly
 
-Which is honestly more than can be said for a lot of desktop apps that claim to be finished.
+## Wayland
+
+Wayland vs X11 is now mostly a Qt problem, which is honestly a huge lifestyle improvement.
+
+## Why Axel
+
+Because `axel` already knows how to download files fast, and reinventing that part from scratch would be a fantastic waste of everyone’s time.
