@@ -5,21 +5,21 @@ Linux download managers kept showing up dressed like a committee compromise from
 `DYX` is a desktop app for `axel` with:
 
 - `Zig` doing the real download/backend work
-- `Tauri + Rust` handling the native shell
-- `React + Vite` rendering the UI you actually wanted instead of whatever beige tragedy shipped by default
+- `Qt 6 + QML` handling the native shell
+- the old `React + Vite` app kept around as the visual source of truth while the native shell catches up
 
-The JavaScript side is `bun`-first now, because life is short and `npm` has done enough.
+So yes, the stack is finally less cursed than it was five minutes ago.
 
 ## What Lives Here
 
 - `src/`
   The Zig backend. This is the part that actually talks to `axel`, tracks downloads, saves settings/history, and emits events.
-- `src-tauri/`
-  The native shell and backend bridge.
+- `qt/`
+  The native shell and backend bridge. This is the app path that `nix run` builds now.
 - `components/`, `hooks/`, `lib/`, `public/`, `src/`, `styles/`
-  The real frontend. This is the app now, not a side experiment in a nested folder.
+  The React/Vite app we are using as the visual spec while porting the exact UI to QML.
 - `build.zig`
-  Backend-only Zig build file. We are not pretending the old webview shell still matters.
+  Backend-only Zig build file. The downloader core still lives here.
 
 ## Run It
 
@@ -29,7 +29,7 @@ The civilized way:
 nix run "path:$PWD"
 ```
 
-That should build and launch the packaged Tauri app with the Zig backend wired in.
+That should build and launch the packaged Qt app with the Zig backend wired in.
 
 ## Work On It
 
@@ -39,7 +39,7 @@ Enter the shell:
 nix develop "path:$PWD"
 ```
 
-Install JS deps:
+Install JS deps for the reference frontend:
 
 ```bash
 bun install
@@ -57,58 +57,43 @@ Run backend tests:
 zig build test
 ```
 
-Run the UI in the browser if you just want frontend iteration:
+Run the reference UI in the browser if you want to compare visuals:
 
 ```bash
 bun run dev
 ```
 
-Run the actual desktop app in dev mode:
+Build the native Qt shell:
 
 ```bash
-bun run tauri:dev
+cmake -S qt -B build/qt -G Ninja
+cmake --build build/qt
+./build/qt/dyx-qt
 ```
 
-The one boring exception:
-
-- local dev uses `bun`
-- `nix build` still uses the checked-in `package-lock.json` for reproducible frontend packaging
-
-So if you add or change JS dependencies, update both lockfiles before calling it done.
+The `bun` side is there for the reference frontend. The shipped app path is Qt.
 
 ## Stack
 
-Yes, it is a little unholy:
+Current live stack:
 
 - `Zig`
-- `Rust`
-- `Tauri`
-- `Vite`
-- `React`
+- `Qt 6`
+- `QML`
 - `axel`
 - `Nix`
 
-But it works, and at this point I care more about the app feeling good than winning a purity contest against my own toolchain.
+Reference/spec stack still in the repo:
+
+- `React`
+- `Vite`
+- `bun`
+
+That split exists on purpose: the React app tells us what the UI must look like, and the Qt app is the actual product shell.
 
 ## Wayland
 
-Linux graphics remains emotionally unstable, so the app defaults to the safer X11 path unless you explicitly opt into Wayland.
-
-Try Wayland if you want:
-
-```bash
-DYX_EXPERIMENTAL_WAYLAND=1 bun run tauri:dev
-```
-
-Or for the packaged app:
-
-```bash
-DYX_EXPERIMENTAL_WAYLAND=1 nix run "path:$PWD"
-```
-
-If it feels silky smooth, congratulations.
-
-If it detonates visually, that is why the fallback exists.
+Wayland vs X11 is now mostly a Qt question instead of a WebKit/Tauri question, which is already an improvement for everyone involved.
 
 ## Why Axel
 
@@ -122,6 +107,7 @@ This is alpha software, but it is real alpha software:
 - pause/resume works
 - delete cleans up partials and `.st` files
 - settings and history persist
-- the UI is no longer a cry for help
+- the Qt shell compiles and packages
+- the UI is being ported to native QML against the current live dark app as the exact spec
 
 Which is honestly more than can be said for a lot of desktop apps that claim to be finished.

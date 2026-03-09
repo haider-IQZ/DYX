@@ -1,5 +1,5 @@
 {
-  description = "DYX - Tauri + Vite frontend with a Zig Axel backend";
+  description = "DYX - Qt/QML shell with a Zig Axel backend";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -33,29 +33,7 @@
               ]);
         };
 
-        runtimePath = lib.makeBinPath (with pkgs; [
-          axel
-          xdg-utils
-          zenity
-        ]);
-
-        dyxFrontend = pkgs.buildNpmPackage {
-          pname = "dyx-frontend";
-          version = "0.1.0";
-          src = cleanedSrc;
-          npmDeps = pkgs.importNpmLock {
-            npmRoot = cleanedSrc;
-          };
-          npmConfigHook = pkgs.importNpmLock.npmConfigHook;
-          npmBuildScript = "build";
-
-          installPhase = ''
-            runHook preInstall
-            mkdir -p $out
-            cp -r dist/. $out/
-            runHook postInstall
-          '';
-        };
+        runtimePath = lib.makeBinPath (with pkgs; [ axel xdg-utils zenity ]);
 
         dyxBackend = pkgs.stdenv.mkDerivation {
           pname = "dyx-backend";
@@ -82,69 +60,79 @@
           '';
         };
 
-        dyxTauri = pkgs.rustPlatform.buildRustPackage {
+        dyxQt = pkgs.stdenv.mkDerivation {
           pname = "dyx";
           version = "0.1.0";
           src = cleanedSrc;
-          cargoRoot = "src-tauri";
-          buildAndTestSubdir = "src-tauri";
-          cargoLock.lockFile = ./src-tauri/Cargo.lock;
 
           nativeBuildInputs = with pkgs; [
-            mold
+            cmake
+            ninja
             pkg-config
             makeWrapper
+            qt6.wrapQtAppsHook
           ];
 
           buildInputs = with pkgs; [
-            gtk3
-            openssl
-            webkitgtk_4_1
+            qt6.qtbase
+            qt6.qtdeclarative
+            qt6.qtshadertools
+            qt6.qtsvg
+            qt6.qttools
+            qt6.qtwayland
           ];
 
-          preBuild = ''
-            rm -rf dist
-            mkdir -p dist
-            cp -r ${dyxFrontend}/. dist/
+          configurePhase = ''
+            runHook preConfigure
+            cmake -S qt -B build/qt -G Ninja -DCMAKE_BUILD_TYPE=Release
+            runHook postConfigure
           '';
 
-          postInstall = ''
-            mkdir -p $out/libexec
-            mv $out/bin/dyx-tauri $out/libexec/dyx-tauri
+          buildPhase = ''
+            runHook preBuild
+            cmake --build build/qt
+            runHook postBuild
+          '';
 
-            makeWrapper $out/libexec/dyx-tauri $out/bin/dyx \
+          installPhase = ''
+            runHook preInstall
+            cmake --install build/qt --prefix $out
+            mkdir -p $out/libexec
+            mv $out/bin/dyx-qt $out/libexec/dyx-qt
+
+            makeWrapper $out/libexec/dyx-qt $out/bin/dyx \
               --set DYX_BACKEND_BIN "${dyxBackend}/libexec/dyx-backend" \
               --prefix PATH : "${runtimePath}" \
-              --set-default WEBKIT_DISABLE_DMABUF_RENDERER 1 \
-              --run 'if [ -z "''${GDK_BACKEND:-}" ] && [ "''${DYX_EXPERIMENTAL_WAYLAND:-0}" != "1" ]; then export GDK_BACKEND=x11; fi'
+              --set-default QT_QUICK_CONTROLS_STYLE Basic
+            runHook postInstall
           '';
         };
       in
       {
-        packages.default = dyxTauri;
-        packages.tauri = dyxTauri;
+        packages.default = dyxQt;
+        packages.qt = dyxQt;
         packages.backend = dyxBackend;
-        packages.frontend = dyxFrontend;
 
         apps.default = {
           type = "app";
-          program = "${dyxTauri}/bin/dyx";
+          program = "${dyxQt}/bin/dyx";
         };
 
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             axel
             bun
-            cargo
-            cargo-tauri
             clang
-            mold
+            cmake
+            ninja
             nodejs
-            openssl
             pkg-config
-            rustc
-            webkitgtk_4_1
-            gtk3
+            qt6.qtbase
+            qt6.qtdeclarative
+            qt6.qtshadertools
+            qt6.qtsvg
+            qt6.qttools
+            qt6.qtwayland
             xdg-utils
             zenity
             zig
@@ -155,11 +143,14 @@
             echo "Backend build: zig build backend"
             echo "Backend tests: zig build test"
             echo "Frontend dev: bun run dev"
-            echo "Tauri dev: bun run tauri:dev"
+            echo "Qt configure: cmake -S qt -B build/qt -G Ninja"
+            echo "Qt build: cmake --build build/qt"
+            echo "Qt run: ./build/qt/dyx-qt"
             echo "Package build: nix build ."
             echo "Package run: nix run ."
-            echo "Wayland opt-in: DYX_EXPERIMENTAL_WAYLAND=1 bun run tauri:dev"
-            export CARGO_TARGET_DIR="$PWD/.cargo-target"
+            export QT_PLUGIN_PATH="${pkgs.lib.makeSearchPath "lib/qt-6/plugins" [ pkgs.qt6.qtbase pkgs.qt6.qtsvg pkgs.qt6.qtdeclarative ]}"
+            export QML2_IMPORT_PATH="${pkgs.qt6.qtdeclarative}/lib/qt-6/qml"
+            export QML_IMPORT_PATH="$QML2_IMPORT_PATH"
           '';
         };
       });

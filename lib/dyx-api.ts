@@ -1,15 +1,57 @@
 "use client";
 
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import type { AppSettings, AxelStatus, DownloadItem, HistoryItem, IpcEvent, IpcResponse, StartDownloadRequest } from "./dyx-types";
 
-function makeId() {
-  return `req_${Math.random().toString(36).slice(2, 10)}`;
+type Unlisten = () => void;
+
+type DYXBridge = {
+  request<T = unknown>(method: string, params?: unknown): Promise<IpcResponse<T>>;
+  subscribe?(handler: (event: IpcEvent) => void): Promise<Unlisten> | Unlisten;
+};
+
+declare global {
+  interface Window {
+    __DYX__?: DYXBridge;
+  }
+}
+
+let tauriBridgePromise: Promise<DYXBridge> | null = null;
+
+async function getTauriBridge(): Promise<DYXBridge> {
+  if (!tauriBridgePromise) {
+    tauriBridgePromise = (async () => {
+      const [{ invoke }, { listen }] = await Promise.all([
+        import("@tauri-apps/api/core"),
+        import("@tauri-apps/api/event"),
+      ]);
+
+      return {
+        request<T = unknown>(method: string, params?: unknown) {
+          return invoke<IpcResponse<T>>("backend_request", { method, params });
+        },
+        subscribe(handler: (event: IpcEvent) => void) {
+          return listen<IpcEvent>("backend-event", (event) => {
+            handler(event.payload);
+          });
+        },
+      };
+    })();
+  }
+
+  return tauriBridgePromise;
+}
+
+async function getBridge(): Promise<DYXBridge> {
+  if (typeof window !== "undefined" && window.__DYX__) {
+    return window.__DYX__;
+  }
+
+  return getTauriBridge();
 }
 
 async function request<T = unknown>(method: string, params?: unknown): Promise<T> {
-  const response = await invoke<IpcResponse<T>>("backend_request", { method, params });
+  const bridge = await getBridge();
+  const response = await bridge.request<T>(method, params);
   if (!response.ok) {
     throw new Error(response.error);
   }
@@ -17,9 +59,11 @@ async function request<T = unknown>(method: string, params?: unknown): Promise<T
 }
 
 export async function subscribeToBackendEvents(handler: (event: IpcEvent) => void) {
-  return listen<IpcEvent>("backend-event", (event) => {
-    handler(event.payload);
-  });
+  const bridge = await getBridge();
+  if (!bridge.subscribe) {
+    return () => {};
+  }
+  return bridge.subscribe(handler);
 }
 
 export const checkAxel = () => request<AxelStatus>("checkAxel");
