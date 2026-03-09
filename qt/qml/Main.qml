@@ -21,8 +21,9 @@ ApplicationWindow {
     property string defaultSavePath: settingsModel ? settingsModel.defaultDownloadDir : "~/Downloads"
     readonly property real effectiveWindowWidth: width / Math.max(tokens.scale, 0.01)
     readonly property bool compactSidebar: effectiveWindowWidth < tokens.responsiveCompactWindow
-    readonly property int sidebarVisualWidth: compactSidebar ? tokens.sidebarCompactWidth : tokens.sidebarExpandedWidth
-    readonly property real effectiveContentWidth: effectiveWindowWidth - sidebarVisualWidth
+    readonly property int sidebarDesignWidth: compactSidebar ? tokens.sidebarCompactWidth : tokens.sidebarExpandedWidth
+    readonly property int sidebarVisualWidth: tokens.px(sidebarDesignWidth)
+    readonly property real effectiveContentWidth: effectiveWindowWidth - sidebarDesignWidth
     readonly property bool tightContent: effectiveContentWidth < tokens.responsiveTightContent
     readonly property bool narrowContent: effectiveContentWidth < tokens.responsiveNarrowContent
 

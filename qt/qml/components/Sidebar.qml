@@ -15,7 +15,7 @@ Rectangle {
     signal filterSelected(string filter)
     signal settingsSelected()
 
-    width: compactMode ? tokens.sidebarCompactWidth : tokens.sidebarExpandedWidth
+    width: compactMode ? tokens.px(tokens.sidebarCompactWidth) : tokens.px(tokens.sidebarExpandedWidth)
     implicitWidth: width
     color: tokens.colors.card
 
