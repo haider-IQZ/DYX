@@ -8,7 +8,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Svg Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Qml Quick QuickControls2 Svg)
 
 qt_standard_project_setup(REQUIRES 6.5)
 
@@ -24,8 +24,10 @@ set_source_files_properties(
 
 qt_add_executable(dyx-qt
     src/main.cpp
+    src/appcommandbridge.cpp
     src/backendclient.cpp
     src/downloadlistmodel.cpp
+    src/firefoxcatcherlog.cpp
     src/iconprovider.cpp
     src/settingsmodel.cpp
     src/uistate.cpp
@@ -37,16 +39,31 @@ target_link_libraries(dyx-qt
     PRIVATE
         Qt6::Core
         Qt6::Gui
+        Qt6::Network
         Qt6::Qml
         Qt6::Quick
         Qt6::QuickControls2
         Qt6::Svg
-        Qt6::Widgets
+)
+
+qt_add_executable(dyx-relay
+    src/relaymain.cpp
+    src/appcommandbridge.cpp
+    src/firefoxcatcherlog.cpp
+)
+
+target_include_directories(dyx-relay PRIVATE src)
+
+target_link_libraries(dyx-relay
+    PRIVATE
+        Qt6::Core
+        Qt6::Network
 )
 
 qt_add_resources(dyx-qt dyx_icons
     PREFIX "/icons"
     FILES
+        resources/branding/dyx-app-icon.png
         resources/icons/activity.svg
         resources/icons/archive.svg
         resources/icons/arrowdown.svg
@@ -61,6 +78,7 @@ qt_add_resources(dyx-qt dyx_icons
         resources/icons/gear.svg
         resources/icons/harddrive.svg
         resources/icons/image.svg
+        resources/icons/infinity.svg
         resources/icons/link.svg
         resources/icons/plus.svg
         resources/icons/pause.svg
@@ -77,7 +95,6 @@ qt_add_qml_module(dyx-qt
         qml/Main.qml
         qml/components/AddDownloadDialog.qml
         qml/components/DirectoryPickerDialog.qml
-        qml/components/DyxBadge.qml
         qml/components/DyxButton.qml
         qml/components/DyxCard.qml
         qml/components/DyxDialog.qml
@@ -97,7 +114,7 @@ qt_add_qml_module(dyx-qt
         qml/theme/Tokens.qml
 )
 
-install(TARGETS dyx-qt
+install(TARGETS dyx-qt dyx-relay
     BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
 )

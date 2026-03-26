@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="oceanTint" x1="512" y1="96" x2="512" y2="928" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#211634" stop-opacity="0.18"/>
+      <stop offset="0.48" stop-color="#2A1241" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#3B0F4F" stop-opacity="0.32"/>
+    </linearGradient>
+    <radialGradient id="centerFade" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(512 458) rotate(90) scale(358 358)">
+      <stop stop-color="#000000" stop-opacity="0"/>
+      <stop offset="0.68" stop-color="#150C24" stop-opacity="0"/>
+      <stop offset="1" stop-color="#150C24" stop-opacity="0.26"/>
+    </radialGradient>
+    <linearGradient id="waveGlow" x1="244" y1="738" x2="818" y2="886" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F0ABFC" stop-opacity="0.16"/>
+      <stop offset="0.5" stop-color="#A78BFA" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#60A5FA" stop-opacity="0.12"/>
+    </linearGradient>
+    <filter id="blurWave" x="154" y="650" width="724" height="224" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#oceanTint)"/>
+  <rect width="1024" height="1024" fill="url(#centerFade)"/>
+
+  <g filter="url(#blurWave)" opacity="0.7">
+    <path d="M208 780C266 752 313 744 366 758C431 775 466 815 530 826C588 837 647 819 694 794C734 773 771 765 816 778" stroke="url(#waveGlow)" stroke-width="18" stroke-linecap="round"/>
+    <path d="M234 820C294 796 351 794 405 809C468 827 503 857 564 862C623 868 682 850 728 830C762 816 790 811 820 818" stroke="url(#waveGlow)" stroke-width="12" stroke-linecap="round" opacity="0.75"/>
+  </g>
+</svg>

@@ -33,7 +33,7 @@
               ]);
         };
 
-        runtimePath = lib.makeBinPath (with pkgs; [ axel xdg-utils zenity ]);
+        runtimePath = lib.makeBinPath (with pkgs; [ axel python3 xdg-utils zenity ]);
 
         dyxBackend = pkgs.stdenv.mkDerivation {
           pname = "dyx-backend";
@@ -56,6 +56,7 @@
             runHook preInstall
             mkdir -p $out/libexec
             install -Dm755 zig-out/bin/dyx-backend $out/libexec/dyx-backend
+            install -Dm755 zig-out/bin/dyx-native-host $out/libexec/dyx-native-host
             runHook postInstall
           '';
         };
@@ -99,11 +100,29 @@
             cmake --install build/qt --prefix $out
             mkdir -p $out/libexec
             mv $out/bin/dyx-qt $out/libexec/dyx-qt
+            mv $out/bin/dyx-relay $out/libexec/dyx-relay
+            install -Dm755 ${dyxBackend}/libexec/dyx-native-host $out/libexec/dyx-native-host
+
+            mkdir -p $out/share/dyx/native-messaging/firefox
+            install -Dm644 packaging/native-messaging/firefox/app.dyx.native_host.json.in \
+              $out/share/dyx/native-messaging/firefox/app.dyx.native_host.json.in
+
+            install -Dm755 scripts/register-firefox-native-host.sh $out/bin/dyx-register-firefox-host
+            install -Dm755 scripts/unregister-firefox-native-host.sh $out/bin/dyx-unregister-firefox-host
+            patchShebangs $out/bin/dyx-register-firefox-host $out/bin/dyx-unregister-firefox-host
 
             makeWrapper $out/libexec/dyx-qt $out/bin/dyx \
               --set DYX_BACKEND_BIN "${dyxBackend}/libexec/dyx-backend" \
               --prefix PATH : "${runtimePath}" \
               --set-default QT_QUICK_CONTROLS_STYLE Basic
+
+            wrapProgram $out/bin/dyx-register-firefox-host \
+              --set DYX_NATIVE_HOST_BIN "$out/libexec/dyx-native-host" \
+              --set DYX_FIREFOX_HOST_TEMPLATE "$out/share/dyx/native-messaging/firefox/app.dyx.native_host.json.in" \
+              --prefix PATH : "${lib.makeBinPath (with pkgs; [ coreutils python3 ])}"
+
+            wrapProgram $out/bin/dyx-unregister-firefox-host \
+              --prefix PATH : "${lib.makeBinPath (with pkgs; [ coreutils ])}"
             runHook postInstall
           '';
         };
@@ -125,6 +144,7 @@
             cmake
             ninja
             pkg-config
+            python3
             qt6.qtbase
             qt6.qtdeclarative
             qt6.qtshadertools

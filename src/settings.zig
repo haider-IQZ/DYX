@@ -70,6 +70,7 @@ fn defaultSettings(allocator: std.mem.Allocator) !models.AppSettings {
         .defaultTimeoutSeconds = 30,
         .maxConcurrentDownloads = 0,
         .autoRetryOnFail = true,
+        .autoRetryLimit = 3,
         .theme = .system,
     };
 }
@@ -101,13 +102,25 @@ fn envOwned(allocator: std.mem.Allocator, key: []const u8) ![]u8 {
 }
 
 fn sanitizeSettings(allocator: std.mem.Allocator, settings_value: *models.AppSettings) !bool {
-    if (isValidDirectoryValue(settings_value.defaultDownloadDir)) {
-        return false;
+    var repaired = false;
+
+    if (!isValidDirectoryValue(settings_value.defaultDownloadDir)) {
+        allocator.free(settings_value.defaultDownloadDir);
+        settings_value.defaultDownloadDir = try defaultDownloadDir(allocator);
+        repaired = true;
     }
 
-    allocator.free(settings_value.defaultDownloadDir);
-    settings_value.defaultDownloadDir = try defaultDownloadDir(allocator);
-    return true;
+    if (settings_value.autoRetryLimit < -1) {
+        settings_value.autoRetryLimit = if (settings_value.autoRetryOnFail) 3 else 0;
+        repaired = true;
+    }
+
+    if (settings_value.autoRetryOnFail != (settings_value.autoRetryLimit != 0)) {
+        settings_value.autoRetryOnFail = settings_value.autoRetryLimit != 0;
+        repaired = true;
+    }
+
+    return repaired;
 }
 
 fn isValidDirectoryValue(value: []const u8) bool {
@@ -132,6 +145,7 @@ test "settings can round-trip" {
         .defaultTimeoutSeconds = 60,
         .maxConcurrentDownloads = 3,
         .autoRetryOnFail = false,
+        .autoRetryLimit = 0,
         .theme = .dark,
     };
     defer settings_value.deinit(allocator);
@@ -147,4 +161,21 @@ test "settings can round-trip" {
     try std.testing.expect(parsed.value.defaultNoClobber);
     try std.testing.expectEqual(@as(u32, 3), parsed.value.maxConcurrentDownloads);
     try std.testing.expect(!parsed.value.autoRetryOnFail);
+    try std.testing.expectEqual(@as(i32, 0), parsed.value.autoRetryLimit);
+}
+
+test "sanitize settings migrates legacy auto retry boolean" {
+    const allocator = std.testing.allocator;
+    var settings_value = models.AppSettings{
+        .defaultDownloadDir = try allocator.dupe(u8, "/tmp/downloads"),
+        .autoRetryOnFail = true,
+        .autoRetryLimit = -2,
+    };
+    defer settings_value.deinit(allocator);
+
+    const repaired = try sanitizeSettings(allocator, &settings_value);
+
+    try std.testing.expect(repaired);
+    try std.testing.expect(settings_value.autoRetryOnFail);
+    try std.testing.expectEqual(@as(i32, 3), settings_value.autoRetryLimit);
 }

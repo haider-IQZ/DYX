@@ -24,7 +24,7 @@ DyxCard {
     signal openFolder(string id)
     readonly property int actionSpacing: tokens.px(4)
     readonly property int actionTrayWidth: (tokens.iconButtonSize * 3) + (actionSpacing * 2)
-    readonly property bool canTogglePause: root.status === "downloading" || root.status === "paused"
+    readonly property bool canTogglePause: root.status === "queued" || root.status === "downloading" || root.status === "paused"
 
     height: tokens.px(116)
     hovered: cardHover.hovered || actionRow.hovered
@@ -45,12 +45,14 @@ DyxCard {
         if (root.status === "downloading") return tokens.colors.blue
         if (root.status === "paused") return tokens.colors.yellow
         if (root.status === "error") return tokens.colors.red
+        if (root.status === "cancelled") return tokens.colors.mutedForeground
         return tokens.colors.mutedForeground
     }
 
     function statusIconName() {
         if (root.status === "completed") return "check"
         if (root.status === "queued") return "clock"
+        if (root.status === "cancelled") return "close"
         if (root.status === "error") return "close"
         return ""
     }
@@ -59,6 +61,7 @@ DyxCard {
         if (root.status === "completed") return "#22c55e"
         if (root.status === "downloading") return tokens.colors.primary
         if (root.status === "paused") return "#eab308"
+        if (root.status === "cancelled") return tokens.colors.mutedForeground
         return tokens.colors.mutedForeground
     }
 
@@ -150,7 +153,7 @@ DyxCard {
                                 anchors.fill: parent
                                 visible: root.canTogglePause
                                 enabled: root.canTogglePause && actionRow.enabled
-                                iconName: root.status === "downloading" ? "pause" : "play"
+                                iconName: root.status === "paused" ? "play" : "pause"
                                 fillColor: "transparent"
                                 strokeColor: "transparent"
                                 onClicked: root.togglePause(root.downloadId)

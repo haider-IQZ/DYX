@@ -62,6 +62,18 @@ fn dispatch(
         const cancelled = try app.downloads.cancelDownload(request.id);
         return models.jsonStringifyAlloc(allocator, .{ .cancelled = cancelled }, .{});
     }
+    if (std.mem.eql(u8, method, "pauseDownload")) {
+        const request = try parseOwnedIdRequest(allocator, params_value orelse return error.MissingParams);
+        defer allocator.free(request.id);
+        const paused = try app.downloads.pauseDownload(request.id);
+        return models.jsonStringifyAlloc(allocator, .{ .paused = paused }, .{});
+    }
+    if (std.mem.eql(u8, method, "resumeDownload")) {
+        const request = try parseOwnedIdRequest(allocator, params_value orelse return error.MissingParams);
+        defer allocator.free(request.id);
+        const resumed = try app.downloads.resumeDownload(request.id);
+        return models.jsonStringifyAlloc(allocator, .{ .resumed = resumed }, .{});
+    }
     if (std.mem.eql(u8, method, "deleteDownload")) {
         const request = try parseOwnedIdRequest(allocator, params_value orelse return error.MissingParams);
         defer allocator.free(request.id);

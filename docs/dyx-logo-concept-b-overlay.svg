@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <filter id="panelShadow" x="238" y="676" width="548" height="194" filterUnits="userSpaceOnUse">
+      <feOffset dy="14"/>
+      <feGaussianBlur stdDeviation="18"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.01 0 0 0 0 0.01 0 0 0 0 0.03 0 0 0 0.42 0"/>
+    </filter>
+    <linearGradient id="panelFill" x1="300" y1="708" x2="708" y2="860" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#14111D" stop-opacity="0.78"/>
+      <stop offset="0.55" stop-color="#1B1627" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="#231C31" stop-opacity="0.68"/>
+    </linearGradient>
+    <linearGradient id="panelStroke" x1="282" y1="700" x2="742" y2="848" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFC" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#DDD6FE" stop-opacity="0.08"/>
+    </linearGradient>
+  </defs>
+  <g opacity="0.18">
+    <path d="M244 262H326" stroke="#60A5FA" stroke-width="8" stroke-linecap="round"/>
+    <path d="M232 296H296" stroke="#60A5FA" stroke-width="6" stroke-linecap="round" opacity="0.45"/>
+  </g>
+  <g filter="url(#panelShadow)">
+    <rect x="278" y="718" width="468" height="118" rx="38" fill="url(#panelFill)"/>
+    <rect x="279.25" y="719.25" width="465.5" height="115.5" rx="36.75" stroke="url(#panelStroke)" stroke-width="2.5"/>
+  </g>
+  <g opacity="0.96">
+    <path d="M512 738V794" stroke="#F8FAFC" stroke-width="15" stroke-linecap="round"/>
+    <path d="M484 768L512 796L540 768" stroke="#F8FAFC" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M430 802C430 795.373 435.373 790 442 790H460.7C464.608 790 468.326 788.3 470.867 785.342L480.915 773.647C485.693 768.086 494.307 768.086 499.085 773.647L509.133 785.342C511.674 788.3 515.392 790 519.3 790H582.7C586.608 790 590.326 788.3 592.867 785.342L602.915 773.647C607.693 768.086 616.307 768.086 621.085 773.647L631.133 785.342C633.674 788.3 637.392 790 641.3 790H660C666.627 790 672 795.373 672 802V806C672 812.627 666.627 818 660 818H442C435.373 818 430 812.627 430 806V802Z" fill="#F8FAFC" fill-opacity="0.95"/>
+    <path d="M450 803H654" stroke="#2B1F3E" stroke-width="4.25" stroke-linecap="round" opacity="0.5"/>
+    <circle cx="646" cy="803" r="5" fill="#2B1F3E"/>
+  </g>
+</svg>

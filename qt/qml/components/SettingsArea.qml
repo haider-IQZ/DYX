@@ -9,13 +9,33 @@ Rectangle {
     property var hostWindow
     property bool tightLayout: false
     property bool narrowLayout: false
+    readonly property bool stackedRows: root.narrowLayout || contentColumn.width < tokens.px(760)
+    readonly property int labelWidth: root.stackedRows ? 0 : tokens.px(root.tightLayout ? 190 : 230)
+    readonly property color surface: Qt.rgba(tokens.colors.muted.r, tokens.colors.muted.g, tokens.colors.muted.b, 0.72)
+    readonly property color surfaceBorder: Qt.rgba(tokens.colors.foreground.r, tokens.colors.foreground.g, tokens.colors.foreground.b, 0.06)
+    readonly property color rowDivider: Qt.rgba(tokens.colors.foreground.r, tokens.colors.foreground.g, tokens.colors.foreground.b, 0.07)
+    readonly property color textPrimary: tokens.colors.foreground
+    readonly property color textSecondary: tokens.colors.mutedForeground
+    readonly property color controlFill: Qt.rgba(tokens.colors.foreground.r, tokens.colors.foreground.g, tokens.colors.foreground.b, 0.06)
+    readonly property color controlSelectedFill: Qt.rgba(tokens.colors.foreground.r, tokens.colors.foreground.g, tokens.colors.foreground.b, 0.14)
+    readonly property color controlSelectedBorder: Qt.rgba(tokens.colors.foreground.r, tokens.colors.foreground.g, tokens.colors.foreground.b, 0.16)
+    readonly property color fieldFill: Qt.rgba(tokens.colors.foreground.r, tokens.colors.foreground.g, tokens.colors.foreground.b, 0.04)
 
     color: tokens.colors.background
 
     readonly property var speedPresets: [
-        { id: "slow", label: "Slow", connections: 4, description: "Gentler on weak servers" },
-        { id: "medium", label: "Medium", connections: 8, description: "Balanced default" },
-        { id: "maximum", label: "Maximum", connections: 32, description: "Fastest possible" }
+        { id: "slow", label: "Slow", connections: 4 },
+        { id: "medium", label: "Medium", connections: 8 },
+        { id: "maximum", label: "Max", connections: 32 }
+    ]
+    readonly property var retryPresets: [
+        { id: "off", label: "Off", retries: 0 },
+        { id: "one", label: "1", retries: 1 },
+        { id: "two", label: "2", retries: 2 },
+        { id: "three", label: "3", retries: 3 },
+        { id: "four", label: "4", retries: 4 },
+        { id: "five", label: "5", retries: 5 },
+        { id: "infinite", label: "", retries: -1, iconName: "infinity" }
     ]
 
     function saveDirectory(path) {
@@ -31,6 +51,14 @@ Rectangle {
             return
         }
         settingsModel.defaultConnections = count
+        backend.saveSettings()
+    }
+
+    function saveRetryLimit(limit) {
+        if (!settingsModel || !backend) {
+            return
+        }
+        settingsModel.autoRetryLimit = limit
         backend.saveSettings()
     }
 
@@ -90,249 +118,564 @@ Rectangle {
 
             ColumnLayout {
                 id: contentColumn
-                width: Math.max(0, Math.min(parent.width - (tokens.spacing.xl * 2), tokens.contentMaxWidth))
+                width: Math.max(0, Math.min(parent.width - (tokens.spacing.xl * 2), tokens.px(760)))
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.leftMargin: tokens.spacing.xl
                 anchors.topMargin: tokens.spacing.xl
-                spacing: tokens.px(18)
+                spacing: tokens.px(12)
+
+                Text {
+                    text: "DOWNLOADS"
+                    color: tokens.colors.mutedForeground
+                    font.pixelSize: tokens.type.micro
+                    font.letterSpacing: 1.2
+                    renderType: Text.NativeRendering
+                }
 
                 Rectangle {
-                    id: directoryCard
                     Layout.fillWidth: true
-                    radius: tokens.radiusXl
-                    color: tokens.colors.card
-                    border.width: 0
-                    border.color: "transparent"
-                    implicitHeight: directoryContent.implicitHeight + tokens.px(36)
+                    radius: tokens.px(18)
+                    color: root.surface
+                    border.width: 1
+                    border.color: root.surfaceBorder
+                    implicitHeight: groupContent.implicitHeight + tokens.px(8)
 
                     ColumnLayout {
-                        id: directoryContent
+                        id: groupContent
                         anchors.fill: parent
-                        anchors.margins: tokens.px(18)
-                        spacing: tokens.px(16)
+                        anchors.margins: tokens.px(4)
+                        spacing: 0
 
-                        ColumnLayout {
-                            spacing: tokens.px(4)
-
-                            Text {
-                                text: "Default Directory"
-                                color: tokens.colors.foreground
-                                font.pixelSize: tokens.type.body
-                                font.weight: Font.DemiBold
-                                renderType: Text.NativeRendering
-                            }
-
-                            Text {
-                                text: "New downloads start here unless you pick another folder for that one job."
-                                color: tokens.colors.mutedForeground
-                                font.pixelSize: tokens.type.caption
-                                wrapMode: Text.WordWrap
-                                renderType: Text.NativeRendering
-                            }
-                        }
-
-                        Rectangle {
+                        Item {
                             Layout.fillWidth: true
-                            radius: tokens.radiusLg
-                            color: Qt.rgba(tokens.colors.muted.r, tokens.colors.muted.g, tokens.colors.muted.b, 0.35)
-                            implicitHeight: directoryShell.implicitHeight + tokens.px(28)
+                            implicitHeight: directoryRow.implicitHeight + tokens.px(24)
 
                             ColumnLayout {
-                                id: directoryShell
+                                id: directoryRow
                                 anchors.fill: parent
-                                anchors.margins: tokens.px(14)
-                                spacing: tokens.px(12)
+                                anchors.margins: tokens.px(16)
+                                spacing: root.stackedRows ? tokens.px(14) : 0
 
                                 RowLayout {
+                                    visible: !root.stackedRows
                                     Layout.fillWidth: true
-                                    spacing: tokens.px(12)
+                                    spacing: tokens.px(18)
 
-                                    IconGlyph {
-                                        iconName: "folder"
-                                        iconColor: tokens.colors.primary
-                                        font.pixelSize: tokens.px(18)
+                                    ColumnLayout {
+                                        Layout.preferredWidth: root.labelWidth
+                                        Layout.maximumWidth: root.labelWidth
+                                        Layout.fillWidth: root.narrowLayout
+                                        spacing: tokens.px(4)
+
+                                        Text {
+                                            text: "Default Directory"
+                                            color: root.textPrimary
+                                            font.pixelSize: tokens.type.body
+                                            font.weight: Font.Medium
+                                            renderType: Text.NativeRendering
+                                        }
+
+                                        Text {
+                                            text: "New downloads start here unless you pick another folder for one job."
+                                            color: root.textSecondary
+                                            font.pixelSize: tokens.type.caption
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                            renderType: Text.NativeRendering
+                                        }
                                     }
 
-                                    Text {
+                                    ColumnLayout {
                                         Layout.fillWidth: true
-                                        text: settingsModel ? settingsModel.defaultDownloadDir : "~/Downloads"
-                                        color: tokens.colors.foreground
-                                        font.pixelSize: tokens.type.bodySmall
-                                        elide: Text.ElideMiddle
-                                        renderType: Text.NativeRendering
+                                        spacing: tokens.px(10)
+
+                                        Button {
+                                            Layout.fillWidth: true
+                                            implicitHeight: tokens.px(40)
+                                            leftPadding: tokens.px(14)
+                                            rightPadding: tokens.px(14)
+                                            topPadding: 0
+                                            bottomPadding: 0
+                                            hoverEnabled: true
+
+                                            background: Rectangle {
+                                                radius: tokens.px(10)
+                                                color: parent.down
+                                                       ? Qt.rgba(tokens.colors.foreground.r, tokens.colors.foreground.g, tokens.colors.foreground.b, 0.08)
+                                                       : (parent.hovered ? Qt.rgba(tokens.colors.foreground.r, tokens.colors.foreground.g, tokens.colors.foreground.b, 0.06) : root.fieldFill)
+                                                border.width: 1
+                                                border.color: Qt.rgba(tokens.colors.foreground.r, tokens.colors.foreground.g, tokens.colors.foreground.b, 0.08)
+                                            }
+
+                                            contentItem: RowLayout {
+                                                spacing: tokens.px(10)
+
+                                                Text {
+                                                    Layout.fillWidth: true
+                                                    text: settingsModel ? settingsModel.defaultDownloadDir : "~/Downloads"
+                                                    color: root.textPrimary
+                                                    font.pixelSize: tokens.type.bodySmall
+                                                    elide: Text.ElideMiddle
+                                                    renderType: Text.NativeRendering
+                                                }
+
+                                                Text {
+                                                    text: ">"
+                                                    color: root.textSecondary
+                                                    font.pixelSize: tokens.type.body
+                                                    font.weight: Font.Medium
+                                                    renderType: Text.NativeRendering
+                                                }
+                                            }
+
+                                            onClicked: directoryPicker.openAt(settingsModel ? settingsModel.defaultDownloadDir : "")
+                                        }
                                     }
                                 }
 
-                                Item {
+                                ColumnLayout {
+                                    visible: root.stackedRows
                                     Layout.fillWidth: true
-                                    implicitHeight: chooseFolderButton.implicitHeight
+                                    spacing: tokens.px(14)
 
-                                    DyxButton {
-                                        id: chooseFolderButton
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: "Choose Folder"
-                                        borderColor: "transparent"
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: tokens.px(4)
+
+                                        Text {
+                                            text: "Default Directory"
+                                            color: root.textPrimary
+                                            font.pixelSize: tokens.type.body
+                                            font.weight: Font.Medium
+                                            renderType: Text.NativeRendering
+                                        }
+
+                                        Text {
+                                            text: "New downloads start here unless you pick another folder for one job."
+                                            color: root.textSecondary
+                                            font.pixelSize: tokens.type.caption
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                            renderType: Text.NativeRendering
+                                        }
+                                    }
+
+                                    Button {
+                                        Layout.fillWidth: true
+                                        implicitHeight: tokens.px(40)
+                                        leftPadding: tokens.px(14)
+                                        rightPadding: tokens.px(14)
+                                        topPadding: 0
+                                        bottomPadding: 0
+                                        hoverEnabled: true
+
+                                        background: Rectangle {
+                                            radius: tokens.px(10)
+                                            color: parent.down
+                                                   ? Qt.rgba(tokens.colors.foreground.r, tokens.colors.foreground.g, tokens.colors.foreground.b, 0.08)
+                                                   : (parent.hovered ? Qt.rgba(tokens.colors.foreground.r, tokens.colors.foreground.g, tokens.colors.foreground.b, 0.06) : root.fieldFill)
+                                            border.width: 1
+                                            border.color: Qt.rgba(tokens.colors.foreground.r, tokens.colors.foreground.g, tokens.colors.foreground.b, 0.08)
+                                        }
+
+                                        contentItem: RowLayout {
+                                            spacing: tokens.px(10)
+
+                                            Text {
+                                                Layout.fillWidth: true
+                                                text: settingsModel ? settingsModel.defaultDownloadDir : "~/Downloads"
+                                                color: root.textPrimary
+                                                font.pixelSize: tokens.type.bodySmall
+                                                elide: Text.ElideMiddle
+                                                renderType: Text.NativeRendering
+                                            }
+
+                                            Text {
+                                                text: ">"
+                                                color: root.textSecondary
+                                                font.pixelSize: tokens.type.body
+                                                font.weight: Font.Medium
+                                                renderType: Text.NativeRendering
+                                            }
+                                        }
+
                                         onClicked: directoryPicker.openAt(settingsModel ? settingsModel.defaultDownloadDir : "")
                                     }
                                 }
                             }
                         }
-                    }
-                }
 
-                Rectangle {
-                    id: speedCard
-                    Layout.fillWidth: true
-                    radius: tokens.radiusXl
-                    color: tokens.colors.card
-                    border.width: 0
-                    border.color: "transparent"
-                    implicitHeight: speedContent.implicitHeight + tokens.px(36)
-
-                    ColumnLayout {
-                        id: speedContent
-                        anchors.fill: parent
-                        anchors.margins: tokens.px(18)
-                        spacing: tokens.px(16)
-
-                        ColumnLayout {
-                            spacing: tokens.px(4)
-
-                            Text {
-                                text: "Download Speed"
-                                color: tokens.colors.foreground
-                                font.pixelSize: tokens.type.body
-                                font.weight: Font.DemiBold
-                                renderType: Text.NativeRendering
-                            }
-
-                            Text {
-                                text: "Pick how aggressive DYX should be with parallel connections by default."
-                                color: tokens.colors.mutedForeground
-                                font.pixelSize: tokens.type.caption
-                                wrapMode: Text.WordWrap
-                                renderType: Text.NativeRendering
-                            }
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 1
+                            color: root.rowDivider
                         }
 
-                        Repeater {
-                            model: root.speedPresets
+                        Item {
+                            Layout.fillWidth: true
+                            implicitHeight: speedRow.implicitHeight + tokens.px(22)
 
-                            delegate: Button {
-                                required property var modelData
-                                readonly property bool selected: settingsModel && settingsModel.defaultConnections === modelData.connections
+                            ColumnLayout {
+                                id: speedRow
+                                anchors.fill: parent
+                                anchors.margins: tokens.px(16)
+                                spacing: root.stackedRows ? tokens.px(14) : 0
 
-                                Layout.fillWidth: true
-                                implicitHeight: root.narrowLayout ? tokens.px(72) : tokens.px(56)
-                                leftPadding: tokens.px(16)
-                                rightPadding: tokens.px(16)
-                                hoverEnabled: true
+                                RowLayout {
+                                    visible: !root.stackedRows
+                                    Layout.fillWidth: true
+                                    spacing: tokens.px(18)
 
-                                background: Rectangle {
-                                    radius: tokens.radiusLg
-                                    color: parent.selected
-                                           ? Qt.rgba(tokens.colors.primary.r, tokens.colors.primary.g, tokens.colors.primary.b, 0.12)
-                                           : (parent.hovered
-                                              ? Qt.rgba(tokens.colors.foreground.r, tokens.colors.foreground.g, tokens.colors.foreground.b, 0.06)
-                                              : Qt.rgba(tokens.colors.muted.r, tokens.colors.muted.g, tokens.colors.muted.b, 0.28))
-                                    border.width: 0
-                                    border.color: "transparent"
-                                }
+                                    ColumnLayout {
+                                        Layout.preferredWidth: root.labelWidth
+                                        Layout.maximumWidth: root.labelWidth
+                                        Layout.fillWidth: root.narrowLayout
+                                        spacing: tokens.px(4)
 
-                                contentItem: RowLayout {
-                                    spacing: root.narrowLayout ? tokens.px(10) : tokens.px(14)
+                                        Text {
+                                            text: "Download Speed"
+                                            color: root.textPrimary
+                                            font.pixelSize: tokens.type.body
+                                            font.weight: Font.Medium
+                                            renderType: Text.NativeRendering
+                                        }
+
+                                        Text {
+                                            text: "Parallel connections per download."
+                                            color: root.textSecondary
+                                            font.pixelSize: tokens.type.caption
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                            renderType: Text.NativeRendering
+                                        }
+                                    }
 
                                     Rectangle {
-                                        Layout.preferredWidth: tokens.px(28)
-                                        Layout.preferredHeight: tokens.px(28)
-                                        radius: tokens.px(14)
-                                        color: parent.parent.selected
-                                               ? Qt.rgba(tokens.colors.primary.r, tokens.colors.primary.g, tokens.colors.primary.b, 0.18)
-                                               : Qt.rgba(tokens.colors.foreground.r, tokens.colors.foreground.g, tokens.colors.foreground.b, 0.06)
-
-                                        Rectangle {
-                                            anchors.centerIn: parent
-                                            width: tokens.px(8)
-                                            height: tokens.px(8)
-                                            radius: tokens.px(4)
-                                            color: parent.parent.parent.selected ? tokens.colors.primary : tokens.colors.mutedForeground
-                                        }
-                                    }
-
-                                    Item {
+                                        Layout.alignment: Qt.AlignVCenter
                                         Layout.fillWidth: true
-                                        implicitHeight: root.narrowLayout ? narrowSpeedContent.implicitHeight : wideSpeedContent.implicitHeight
+                                        radius: tokens.px(11)
+                                        color: root.controlFill
+                                        implicitHeight: tokens.px(36)
 
                                         RowLayout {
-                                            id: wideSpeedContent
                                             anchors.fill: parent
-                                            visible: !root.narrowLayout
-                                            spacing: tokens.px(root.tightLayout ? 6 : 8)
+                                            anchors.margins: tokens.px(3)
+                                            spacing: tokens.px(4)
 
-                                            Text {
-                                                text: modelData.label
-                                                color: tokens.colors.foreground
-                                                font.pixelSize: tokens.type.bodySmall
-                                                font.weight: Font.DemiBold
-                                                renderType: Text.NativeRendering
-                                            }
+                                            Repeater {
+                                                model: root.speedPresets
 
-                                            Text {
-                                                Layout.fillWidth: true
-                                                text: modelData.description + " - " + modelData.connections + " connections"
-                                                color: tokens.colors.mutedForeground
-                                                font.pixelSize: tokens.type.caption
-                                                elide: Text.ElideRight
-                                                renderType: Text.NativeRendering
+                                                delegate: Button {
+                                                    required property var modelData
+                                                    readonly property bool selected: settingsModel && settingsModel.defaultConnections === modelData.connections
+
+                                                    Layout.fillWidth: true
+                                                    Layout.preferredWidth: modelData.label === "Medium" ? tokens.px(94) : tokens.px(78)
+                                                    implicitHeight: tokens.px(30)
+                                                    leftPadding: 0
+                                                    rightPadding: 0
+                                                    topPadding: 0
+                                                    bottomPadding: 0
+                                                    hoverEnabled: true
+
+                                                    background: Rectangle {
+                                                        radius: tokens.px(9)
+                                                        color: parent.selected ? root.controlSelectedFill : "transparent"
+                                                        border.width: parent.selected ? 1 : 0
+                                                        border.color: root.controlSelectedBorder
+                                                    }
+
+                                                    contentItem: Text {
+                                                        text: parent.modelData.label
+                                                        color: parent.selected ? root.textPrimary : root.textSecondary
+                                                        font.pixelSize: tokens.type.caption
+                                                        font.weight: parent.selected ? Font.Medium : Font.Normal
+                                                        horizontalAlignment: Text.AlignHCenter
+                                                        verticalAlignment: Text.AlignVCenter
+                                                        renderType: Text.NativeRendering
+                                                    }
+
+                                                    onClicked: root.saveConnections(modelData.connections)
+                                                }
                                             }
                                         }
-
-                                        ColumnLayout {
-                                            id: narrowSpeedContent
-                                            anchors.fill: parent
-                                            visible: root.narrowLayout
-                                            spacing: tokens.px(2)
-
-                                            Text {
-                                                text: modelData.label
-                                                color: tokens.colors.foreground
-                                                font.pixelSize: tokens.type.bodySmall
-                                                font.weight: Font.DemiBold
-                                                renderType: Text.NativeRendering
-                                            }
-
-                                            Text {
-                                                Layout.fillWidth: true
-                                                text: modelData.description + " - " + modelData.connections + " connections"
-                                                color: tokens.colors.mutedForeground
-                                                font.pixelSize: tokens.type.caption
-                                                elide: Text.ElideRight
-                                                renderType: Text.NativeRendering
-                                            }
-                                        }
-                                    }
-
-                                    Text {
-                                        visible: !root.tightLayout
-                                        text: selected ? "Selected" : ""
-                                        color: tokens.colors.primary
-                                        font.pixelSize: tokens.type.caption
-                                        font.weight: Font.DemiBold
-                                        renderType: Text.NativeRendering
                                     }
                                 }
 
-                                onClicked: root.saveConnections(modelData.connections)
+                                ColumnLayout {
+                                    visible: root.stackedRows
+                                    Layout.fillWidth: true
+                                    spacing: tokens.px(14)
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: tokens.px(4)
+
+                                        Text {
+                                            text: "Download Speed"
+                                            color: root.textPrimary
+                                            font.pixelSize: tokens.type.body
+                                            font.weight: Font.Medium
+                                            renderType: Text.NativeRendering
+                                        }
+
+                                        Text {
+                                            text: "Parallel connections per download."
+                                            color: root.textSecondary
+                                            font.pixelSize: tokens.type.caption
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                            renderType: Text.NativeRendering
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        radius: tokens.px(11)
+                                        color: root.controlFill
+                                        implicitHeight: tokens.px(36)
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: tokens.px(3)
+                                            spacing: tokens.px(4)
+
+                                            Repeater {
+                                                model: root.speedPresets
+
+                                                delegate: Button {
+                                                    required property var modelData
+                                                    readonly property bool selected: settingsModel && settingsModel.defaultConnections === modelData.connections
+
+                                                    Layout.fillWidth: true
+                                                    Layout.preferredWidth: modelData.label === "Medium" ? tokens.px(94) : tokens.px(78)
+                                                    implicitHeight: tokens.px(30)
+                                                    leftPadding: 0
+                                                    rightPadding: 0
+                                                    topPadding: 0
+                                                    bottomPadding: 0
+                                                    hoverEnabled: true
+
+                                                    background: Rectangle {
+                                                        radius: tokens.px(9)
+                                                        color: parent.selected ? root.controlSelectedFill : "transparent"
+                                                        border.width: parent.selected ? 1 : 0
+                                                        border.color: root.controlSelectedBorder
+                                                    }
+
+                                                    contentItem: Text {
+                                                        text: parent.modelData.label
+                                                        color: parent.selected ? root.textPrimary : root.textSecondary
+                                                        font.pixelSize: tokens.type.caption
+                                                        font.weight: parent.selected ? Font.Medium : Font.Normal
+                                                        horizontalAlignment: Text.AlignHCenter
+                                                        verticalAlignment: Text.AlignVCenter
+                                                        renderType: Text.NativeRendering
+                                                    }
+
+                                                    onClicked: root.saveConnections(modelData.connections)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
 
-                        Text {
-                            text: "Default is Maximum."
-                            color: tokens.colors.mutedForeground
-                            font.pixelSize: tokens.type.caption
-                            renderType: Text.NativeRendering
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 1
+                            color: root.rowDivider
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
+                            implicitHeight: retryRow.implicitHeight + tokens.px(22)
+
+                            ColumnLayout {
+                                id: retryRow
+                                anchors.fill: parent
+                                anchors.margins: tokens.px(16)
+                                spacing: root.stackedRows ? tokens.px(14) : 0
+
+                                RowLayout {
+                                    visible: !root.stackedRows
+                                    Layout.fillWidth: true
+                                    spacing: tokens.px(18)
+
+                                    ColumnLayout {
+                                        Layout.preferredWidth: root.labelWidth
+                                        Layout.maximumWidth: root.labelWidth
+                                        Layout.fillWidth: root.narrowLayout
+                                        spacing: tokens.px(4)
+
+                                        Text {
+                                            text: "Retry After Failure"
+                                            color: root.textPrimary
+                                            font.pixelSize: tokens.type.body
+                                            font.weight: Font.Medium
+                                            renderType: Text.NativeRendering
+                                        }
+
+                                        Text {
+                                            text: "How many times DYX retries before it gives up."
+                                            color: root.textSecondary
+                                            font.pixelSize: tokens.type.caption
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                            renderType: Text.NativeRendering
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        Layout.fillWidth: true
+                                        radius: tokens.px(11)
+                                        color: root.controlFill
+                                        implicitHeight: tokens.px(36)
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: tokens.px(3)
+                                            spacing: tokens.px(4)
+
+                                            Repeater {
+                                                model: root.retryPresets
+
+                                                delegate: Button {
+                                                    required property var modelData
+                                                    readonly property bool selected: settingsModel && settingsModel.autoRetryLimit === modelData.retries
+
+                                                    Layout.fillWidth: true
+                                                    Layout.preferredWidth: modelData.label === "Off" ? tokens.px(70) : tokens.px(42)
+                                                    implicitHeight: tokens.px(30)
+                                                    leftPadding: 0
+                                                    rightPadding: 0
+                                                    topPadding: 0
+                                                    bottomPadding: 0
+                                                    hoverEnabled: true
+
+                                                    background: Rectangle {
+                                                        radius: tokens.px(9)
+                                                        color: parent.selected ? root.controlSelectedFill : "transparent"
+                                                        border.width: parent.selected ? 1 : 0
+                                                        border.color: root.controlSelectedBorder
+                                                    }
+
+                                                    contentItem: Text {
+                                                        visible: !modelData.iconName
+                                                        text: modelData.label
+                                                        color: parent.selected ? root.textPrimary : root.textSecondary
+                                                        font.pixelSize: tokens.type.caption
+                                                        font.weight: parent.selected ? Font.Medium : Font.Normal
+                                                        horizontalAlignment: Text.AlignHCenter
+                                                        verticalAlignment: Text.AlignVCenter
+                                                        renderType: Text.NativeRendering
+                                                    }
+
+                                                    IconGlyph {
+                                                        anchors.centerIn: parent
+                                                        visible: !!modelData.iconName
+                                                        iconName: modelData.iconName || ""
+                                                        iconColor: parent.selected ? root.textPrimary : root.textSecondary
+                                                        font.pixelSize: tokens.px(16)
+                                                    }
+
+                                                    onClicked: root.saveRetryLimit(modelData.retries)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    visible: root.stackedRows
+                                    Layout.fillWidth: true
+                                    spacing: tokens.px(14)
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: tokens.px(4)
+
+                                        Text {
+                                            text: "Retry After Failure"
+                                            color: root.textPrimary
+                                            font.pixelSize: tokens.type.body
+                                            font.weight: Font.Medium
+                                            renderType: Text.NativeRendering
+                                        }
+
+                                        Text {
+                                            text: "How many times DYX retries before it gives up."
+                                            color: root.textSecondary
+                                            font.pixelSize: tokens.type.caption
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                            renderType: Text.NativeRendering
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        radius: tokens.px(11)
+                                        color: root.controlFill
+                                        implicitHeight: tokens.px(36)
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: tokens.px(3)
+                                            spacing: tokens.px(4)
+
+                                            Repeater {
+                                                model: root.retryPresets
+
+                                                delegate: Button {
+                                                    required property var modelData
+                                                    readonly property bool selected: settingsModel && settingsModel.autoRetryLimit === modelData.retries
+
+                                                    Layout.fillWidth: true
+                                                    Layout.preferredWidth: modelData.label === "Off" ? tokens.px(70) : tokens.px(42)
+                                                    implicitHeight: tokens.px(30)
+                                                    leftPadding: 0
+                                                    rightPadding: 0
+                                                    topPadding: 0
+                                                    bottomPadding: 0
+                                                    hoverEnabled: true
+
+                                                    background: Rectangle {
+                                                        radius: tokens.px(9)
+                                                        color: parent.selected ? root.controlSelectedFill : "transparent"
+                                                        border.width: parent.selected ? 1 : 0
+                                                        border.color: root.controlSelectedBorder
+                                                    }
+
+                                                    contentItem: Text {
+                                                        visible: !modelData.iconName
+                                                        text: modelData.label
+                                                        color: parent.selected ? root.textPrimary : root.textSecondary
+                                                        font.pixelSize: tokens.type.caption
+                                                        font.weight: parent.selected ? Font.Medium : Font.Normal
+                                                        horizontalAlignment: Text.AlignHCenter
+                                                        verticalAlignment: Text.AlignVCenter
+                                                        renderType: Text.NativeRendering
+                                                    }
+
+                                                    IconGlyph {
+                                                        anchors.centerIn: parent
+                                                        visible: !!modelData.iconName
+                                                        iconName: modelData.iconName || ""
+                                                        iconColor: parent.selected ? root.textPrimary : root.textSecondary
+                                                        font.pixelSize: tokens.px(16)
+                                                    }
+
+                                                    onClicked: root.saveRetryLimit(modelData.retries)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

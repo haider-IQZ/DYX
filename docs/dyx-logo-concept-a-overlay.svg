@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="ringFill" x1="234" y1="188" x2="792" y2="834" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8AB4FF" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#A78BFA" stop-opacity="0.05"/>
+    </linearGradient>
+    <filter id="softArc" x="176" y="132" width="684" height="772" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+    <filter id="badgeShadow" x="618" y="633" width="286" height="286" filterUnits="userSpaceOnUse">
+      <feOffset dy="14"/>
+      <feGaussianBlur stdDeviation="16"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.02 0 0 0 0 0.02 0 0 0 0 0.05 0 0 0 0.42 0"/>
+    </filter>
+    <linearGradient id="badgeFill" x1="668" y1="690" x2="832" y2="858" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#171321" stop-opacity="0.98"/>
+      <stop offset="0.56" stop-color="#221836" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#2F1F47" stop-opacity="0.93"/>
+    </linearGradient>
+    <radialGradient id="badgeSheen" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(728 712) rotate(48) scale(138)">
+      <stop stop-color="#F8FAFC" stop-opacity="0.26"/>
+      <stop offset="0.42" stop-color="#DDD6FE" stop-opacity="0.07"/>
+      <stop offset="1" stop-color="#DDD6FE" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <g opacity="0.42" filter="url(#softArc)">
+    <path d="M214 182C329 129 485 116 620 142C713 160 778 198 829 249" stroke="url(#ringFill)" stroke-width="13" stroke-linecap="round"/>
+    <path d="M724 819C614 865 466 878 334 855C256 841 200 813 160 777" stroke="url(#ringFill)" stroke-width="9" stroke-linecap="round" opacity="0.72"/>
+  </g>
+  <g opacity="0.22">
+    <path d="M244 260H324" stroke="#60A5FA" stroke-width="8" stroke-linecap="round"/>
+    <path d="M232 294H294" stroke="#60A5FA" stroke-width="6" stroke-linecap="round" opacity="0.45"/>
+  </g>
+  <g filter="url(#badgeShadow)" opacity="0.84">
+    <circle cx="754" cy="770" r="86" fill="#09090F"/>
+  </g>
+  <g>
+    <circle cx="754" cy="770" r="80" fill="url(#badgeFill)"/>
+    <circle cx="754" cy="770" r="80" fill="url(#badgeSheen)"/>
+    <circle cx="754" cy="770" r="75" stroke="#E9D5FF" stroke-opacity="0.19" stroke-width="2.5"/>
+    <path d="M754 718V774" stroke="#F8FAFC" stroke-width="13" stroke-linecap="round"/>
+    <path d="M726 746L754 774L782 746" stroke="#F8FAFC" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M714 801C714 794.925 718.925 790 725 790H732.736C736.532 790 740.142 788.335 742.587 785.447L747.912 779.16C751.647 774.749 758.353 774.749 762.088 779.16L767.413 785.447C769.858 788.335 773.468 790 777.264 790H785C791.075 790 796 794.925 796 801V804C796 810.075 791.075 815 785 815H725C718.925 815 714 810.075 714 804V801Z" fill="#F8FAFC" fill-opacity="0.95"/>
+    <path d="M727 802H781" stroke="#2A1D3D" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+    <circle cx="776" cy="802" r="4.8" fill="#2A1D3D"/>
+  </g>
+</svg>

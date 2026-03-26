@@ -15,6 +15,10 @@ The mission is simple:
 
 ![DYX screenshot 2](docs/dyx-screenshot-2.png)
 
+## Icon
+
+![DYX icon](docs/DYX-official-icon.png)
+
 ## What This Repo Actually Is
 
 - `src/`
@@ -74,6 +78,36 @@ cmake --build build/qt
 ./build/qt/dyx-qt
 ```
 
+## Firefox Extension
+
+Firefox support is native-messaging based, not a localhost hack.
+
+The browser handoff path is:
+
+`Firefox -> dyx-native-host -> dyx-relay -> running DYX`
+
+`DYX` is single-instance now, so browser-triggered downloads get forwarded into the already-running app instead of trying to spin up a second GUI window and pray.
+
+Current dev flow:
+
+```bash
+zig build backend
+./zig-out/bin/dyx-register-firefox-host
+```
+
+Then:
+
+1. Open `about:debugging#/runtime/this-firefox`
+2. Click `Load Temporary Add-on...`
+3. Pick [manifest.json](/home/soka/projects/DYX/browser/firefox/manifest.json)
+4. Start a normal HTTP/HTTPS download in Firefox
+
+If you want to remove the Firefox native host manifest later:
+
+```bash
+./zig-out/bin/dyx-unregister-firefox-host
+```
+
 ## Stack
 
 The stack is blessedly short:
@@ -82,6 +116,7 @@ The stack is blessedly short:
 - `Qt 6`
 - `QML`
 - `axel`
+- `Firefox WebExtension`
 - `Nix`
 
 ## Current Status

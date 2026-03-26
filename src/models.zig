@@ -10,6 +10,7 @@ pub const DownloadStatus = enum {
     queued,
     starting,
     downloading,
+    paused,
     completed,
     failed,
     cancelled,
@@ -18,10 +19,13 @@ pub const DownloadStatus = enum {
 pub const StartDownloadRequest = struct {
     url: []const u8,
     outputPath: ?[]const u8 = null,
+    suggestedFilename: ?[]const u8 = null,
     connections: ?u32 = null,
     maxSpeedBytes: ?u64 = null,
     headers: ?[]const []const u8 = null,
     userAgent: ?[]const u8 = null,
+    correlationId: ?[]const u8 = null,
+    requiresBrowserAuth: bool = false,
     ipv4: bool = false,
     ipv6: bool = false,
     noProxy: bool = false,
@@ -33,10 +37,13 @@ pub const StartDownloadRequest = struct {
         var cloned = StartDownloadRequest{
             .url = try allocator.dupe(u8, self.url),
             .outputPath = if (self.outputPath) |value| try allocator.dupe(u8, value) else null,
+            .suggestedFilename = if (self.suggestedFilename) |value| try allocator.dupe(u8, value) else null,
             .connections = self.connections,
             .maxSpeedBytes = self.maxSpeedBytes,
             .headers = null,
             .userAgent = if (self.userAgent) |value| try allocator.dupe(u8, value) else null,
+            .correlationId = if (self.correlationId) |value| try allocator.dupe(u8, value) else null,
+            .requiresBrowserAuth = self.requiresBrowserAuth,
             .ipv4 = self.ipv4,
             .ipv6 = self.ipv6,
             .noProxy = self.noProxy,
@@ -59,7 +66,9 @@ pub const StartDownloadRequest = struct {
     pub fn deinit(self: *StartDownloadRequest, allocator: std.mem.Allocator) void {
         allocator.free(self.url);
         if (self.outputPath) |value| allocator.free(value);
+        if (self.suggestedFilename) |value| allocator.free(value);
         if (self.userAgent) |value| allocator.free(value);
+        if (self.correlationId) |value| allocator.free(value);
         if (self.headers) |headers| {
             for (headers) |header| allocator.free(header);
             allocator.free(headers);
@@ -70,10 +79,13 @@ pub const StartDownloadRequest = struct {
         try jws.beginObject();
         try writeField(jws, "url", self.url);
         try writeOptionalStringField(jws, "outputPath", self.outputPath);
+        try writeOptionalStringField(jws, "suggestedFilename", self.suggestedFilename);
         try writeOptionalField(jws, "connections", self.connections);
         try writeOptionalField(jws, "maxSpeedBytes", self.maxSpeedBytes);
         try writeOptionalStringArrayField(jws, "headers", self.headers);
         try writeOptionalStringField(jws, "userAgent", self.userAgent);
+        try writeOptionalStringField(jws, "correlationId", self.correlationId);
+        try writeField(jws, "requiresBrowserAuth", self.requiresBrowserAuth);
         try writeField(jws, "ipv4", self.ipv4);
         try writeField(jws, "ipv6", self.ipv6);
         try writeField(jws, "noProxy", self.noProxy);
@@ -92,6 +104,7 @@ pub const AppSettings = struct {
     defaultTimeoutSeconds: u32 = 30,
     maxConcurrentDownloads: u32 = 0,
     autoRetryOnFail: bool = true,
+    autoRetryLimit: i32 = -2,
     theme: Theme = .system,
 
     pub fn cloneOwned(self: AppSettings, allocator: std.mem.Allocator) !AppSettings {
@@ -103,6 +116,7 @@ pub const AppSettings = struct {
             .defaultTimeoutSeconds = self.defaultTimeoutSeconds,
             .maxConcurrentDownloads = self.maxConcurrentDownloads,
             .autoRetryOnFail = self.autoRetryOnFail,
+            .autoRetryLimit = self.autoRetryLimit,
             .theme = self.theme,
         };
     }
@@ -120,6 +134,7 @@ pub const AppSettings = struct {
         try writeField(jws, "defaultTimeoutSeconds", self.defaultTimeoutSeconds);
         try writeField(jws, "maxConcurrentDownloads", self.maxConcurrentDownloads);
         try writeField(jws, "autoRetryOnFail", self.autoRetryOnFail);
+        try writeField(jws, "autoRetryLimit", self.autoRetryLimit);
         try writeField(jws, "theme", self.theme);
         try jws.endObject();
     }
@@ -161,6 +176,8 @@ pub const DownloadItem = struct {
     url: []const u8,
     outputPath: []const u8,
     status: DownloadStatus,
+    correlationId: ?[]const u8 = null,
+    needsBrowserAuth: bool = false,
     progressPercent: u8 = 0,
     downloadedBytes: ?u64 = null,
     totalBytes: ?u64 = null,
@@ -176,6 +193,8 @@ pub const DownloadItem = struct {
             .url = try allocator.dupe(u8, self.url),
             .outputPath = try allocator.dupe(u8, self.outputPath),
             .status = self.status,
+            .correlationId = if (self.correlationId) |value| try allocator.dupe(u8, value) else null,
+            .needsBrowserAuth = self.needsBrowserAuth,
             .progressPercent = self.progressPercent,
             .downloadedBytes = self.downloadedBytes,
             .totalBytes = self.totalBytes,
@@ -191,6 +210,7 @@ pub const DownloadItem = struct {
         allocator.free(self.id);
         allocator.free(self.url);
         allocator.free(self.outputPath);
+        if (self.correlationId) |value| allocator.free(value);
         if (self.speedText) |value| allocator.free(value);
         if (self.etaText) |value| allocator.free(value);
         if (self.errorMessage) |value| allocator.free(value);
@@ -202,6 +222,8 @@ pub const DownloadItem = struct {
         try writeField(jws, "url", self.url);
         try writeField(jws, "outputPath", self.outputPath);
         try writeField(jws, "status", self.status);
+        try writeOptionalStringField(jws, "correlationId", self.correlationId);
+        try writeField(jws, "needsBrowserAuth", self.needsBrowserAuth);
         try writeField(jws, "progressPercent", self.progressPercent);
         try writeOptionalField(jws, "downloadedBytes", self.downloadedBytes);
         try writeOptionalField(jws, "totalBytes", self.totalBytes);
@@ -290,6 +312,7 @@ test "app settings stringify uses JSON strings for paths" {
         .defaultMaxSpeedBytes = null,
         .defaultNoClobber = false,
         .defaultTimeoutSeconds = 30,
+        .autoRetryLimit = 3,
         .theme = .system,
     };
     defer settings_value.deinit(allocator);

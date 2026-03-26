@@ -46,7 +46,6 @@ QVariant DownloadListModel::data(const QModelIndex &index, int role) const {
     case ProgressTextRole: return item.progressText;
     case ProgressPercentRole: return item.progressPercent;
     case StatusTextRole: return item.statusText;
-    case StatusColorRole: return item.statusColor;
     default: return {};
     }
 }
@@ -70,7 +69,6 @@ QHash<int, QByteArray> DownloadListModel::roleNames() const {
         {ProgressTextRole, "progressText"},
         {ProgressPercentRole, "progressPercent"},
         {StatusTextRole, "statusText"},
-        {StatusColorRole, "statusColor"},
     };
 }
 
@@ -105,10 +103,6 @@ void DownloadListModel::setItems(const QList<DownloadEntry> &items) {
     rebuildVisible();
 }
 
-const QList<DownloadEntry> &DownloadListModel::visibleItems() const {
-    return m_visibleItems;
-}
-
 const QList<DownloadEntry> &DownloadListModel::allItems() const {
     return m_allItems;
 }
@@ -118,12 +112,6 @@ DownloadEntry DownloadListModel::itemForId(const QString &id) const {
         return item.id == id;
     });
     return match == m_allItems.end() ? DownloadEntry{} : *match;
-}
-
-bool DownloadListModel::containsId(const QString &id) const {
-    return std::any_of(m_allItems.begin(), m_allItems.end(), [&](const DownloadEntry &item) {
-        return item.id == id;
-    });
 }
 
 void DownloadListModel::rebuildVisible() {

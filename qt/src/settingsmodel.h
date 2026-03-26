@@ -11,6 +11,7 @@ class SettingsModel final : public QObject {
     Q_PROPERTY(int maxConcurrentDownloads READ maxConcurrentDownloads WRITE setMaxConcurrentDownloads NOTIFY changed)
     Q_PROPERTY(bool defaultNoClobber READ defaultNoClobber WRITE setDefaultNoClobber NOTIFY changed)
     Q_PROPERTY(bool autoRetryOnFail READ autoRetryOnFail WRITE setAutoRetryOnFail NOTIFY changed)
+    Q_PROPERTY(int autoRetryLimit READ autoRetryLimit WRITE setAutoRetryLimit NOTIFY changed)
     Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY changed)
 
 public:
@@ -34,6 +35,9 @@ public:
     bool autoRetryOnFail() const;
     void setAutoRetryOnFail(bool value);
 
+    int autoRetryLimit() const;
+    void setAutoRetryLimit(int value);
+
     QString theme() const;
     void setTheme(const QString &value);
 
@@ -49,6 +53,7 @@ private:
     int m_defaultTimeoutSeconds = 30;
     int m_maxConcurrentDownloads = 4;
     bool m_defaultNoClobber = false;
-    bool m_autoRetryOnFail = false;
+    bool m_autoRetryOnFail = true;
+    int m_autoRetryLimit = 3;
     QString m_theme = QStringLiteral("dark");
 };

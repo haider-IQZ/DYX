@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="158" y1="126" x2="854" y2="914" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#141414"/>
+      <stop offset="0.46" stop-color="#090909"/>
+      <stop offset="1" stop-color="#030303"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="210" y1="160" x2="532" y2="514" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="190" y1="148" x2="846" y2="888" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2F2F2F"/>
+      <stop offset="1" stop-color="#101010"/>
+    </linearGradient>
+    <filter id="shadow" x="82" y="76" width="860" height="892" filterUnits="userSpaceOnUse">
+      <feOffset dy="24"/>
+      <feGaussianBlur stdDeviation="28"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.01 0 0 0 0 0.01 0 0 0 0 0.01 0 0 0 0.5 0"/>
+    </filter>
+    <filter id="blueGlow" x="266" y="250" width="492" height="530" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <rect x="138" y="124" width="748" height="748" rx="168" fill="url(#bg)"/>
+    <rect x="141" y="127" width="742" height="742" rx="165" stroke="url(#ring)" stroke-width="6"/>
+  </g>
+
+  <path d="M188 170C264 118 374 96 490 100C582 103 662 128 734 180" stroke="url(#gloss)" stroke-width="26" stroke-linecap="round"/>
+
+  <g opacity="0.75" filter="url(#blueGlow)">
+    <path d="M512 304V554" stroke="#60A5FA" stroke-width="34" stroke-linecap="round"/>
+    <path d="M398 450L512 564L626 450" stroke="#60A5FA" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M334 656H690" stroke="#60A5FA" stroke-width="26" stroke-linecap="round"/>
+  </g>
+
+  <g>
+    <path d="M512 312V548" stroke="#FBFBFB" stroke-width="26" stroke-linecap="round"/>
+    <path d="M408 446L512 550L616 446" stroke="#FBFBFB" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="314" y="616" width="396" height="82" rx="34" fill="#121212"/>
+    <rect x="316.5" y="618.5" width="391" height="77" rx="31.5" stroke="#2A2A2A" stroke-width="5"/>
+    <path d="M346 657H679" stroke="#FBFBFB" stroke-width="18" stroke-linecap="round"/>
+    <circle cx="658" cy="657" r="10" fill="#60A5FA"/>
+  </g>
+</svg>

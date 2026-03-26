@@ -14,8 +14,7 @@ const DownloadRuntime = struct {
     id: []const u8,
     pid: ?std.posix.pid_t = null,
     cancel_mutex: std.Thread.Mutex = .{},
-    cancel_requested: bool = false,
-    delete_requested: bool = false,
+    stop_action: StopAction = .none,
     stderr_mutex: std.Thread.Mutex = .{},
     stderr_buffer: std.array_list.Managed(u8),
 
@@ -28,9 +27,17 @@ const DownloadRuntime = struct {
     }
 };
 
+const StopAction = enum {
+    none,
+    pause,
+    cancel,
+    delete,
+};
+
 const DownloadRecord = struct {
     item: models.DownloadItem,
     request: models.StartDownloadRequest,
+    retry_attempts: u32 = 0,
     runtime: ?*DownloadRuntime = null,
 };
 
@@ -71,7 +78,7 @@ pub const DownloadManager = struct {
             for (self.records.items) |record| {
                 if (record.runtime) |runtime| {
                     runtime.cancel_mutex.lock();
-                    runtime.cancel_requested = true;
+                    runtime.stop_action = .pause;
                     if (runtime.pid) |process_id| {
                         pids.append(process_id) catch {};
                     }
@@ -105,20 +112,7 @@ pub const DownloadManager = struct {
         defer parsed.deinit();
 
         for (parsed.value) |entry| {
-            if (self.history_store.findById(entry.item.id) != null) continue;
-
-            var recovered = try entry.cloneOwned(self.allocator);
-            defer recovered.deinit(self.allocator);
-
-            recovered.item.status = .cancelled;
-            recovered.item.finishedAt = models.nowMillis();
-
-            if (recovered.item.errorMessage) |value| {
-                self.allocator.free(value);
-            }
-            recovered.item.errorMessage = try self.allocator.dupe(u8, "Download paused when app closed");
-
-            try self.history_store.append(recovered);
+            try self.restoreRecoveredRecord(entry);
         }
     }
 
@@ -137,11 +131,14 @@ pub const DownloadManager = struct {
     pub fn startDownload(self: *DownloadManager, request: models.StartDownloadRequest) ![]u8 {
         var owned_request = try self.normalizeRequest(request);
         errdefer owned_request.deinit(self.allocator);
+        if (owned_request.requiresBrowserAuth and owned_request.headers == null) {
+            return error.FreshBrowserHandoffRequired;
+        }
 
         const output_path = if (owned_request.outputPath) |value|
             try self.allocator.dupe(u8, value)
         else
-            try deriveOutputPath(self.allocator, self.settings_store.get(), owned_request.url);
+            try deriveOutputPath(self.allocator, self.settings_store.get(), owned_request);
         errdefer self.allocator.free(output_path);
 
         if (owned_request.outputPath == null) {
@@ -166,6 +163,8 @@ pub const DownloadManager = struct {
             .url = try self.allocator.dupe(u8, owned_request.url),
             .outputPath = output_path,
             .status = .queued,
+            .correlationId = if (owned_request.correlationId) |value| try self.allocator.dupe(u8, value) else null,
+            .needsBrowserAuth = false,
             .progressPercent = 0,
             .startedAt = models.nowMillis(),
             .finishedAt = null,
@@ -182,21 +181,8 @@ pub const DownloadManager = struct {
         };
         self.next_id += 1;
         try self.records.append(record);
-        self.active_workers += 1;
-
+        try self.maybeStartQueuedDownloadsLocked();
         try self.emitRecordByIdLocked(id, "downloadStateChanged");
-        const thread = std.Thread.spawn(.{}, downloadThreadMain, .{runtime}) catch |err| {
-            self.active_workers -= 1;
-            var failed_record = self.records.pop().?;
-            failed_record.item.deinit(self.allocator);
-            failed_record.request.deinit(self.allocator);
-            if (failed_record.runtime) |failed_runtime| {
-                failed_runtime.stderr_buffer.deinit();
-                self.allocator.destroy(failed_runtime);
-            }
-            return err;
-        };
-        thread.detach();
         lock_held = false;
         self.mutex.unlock();
         try self.writeShutdownRecoverySnapshot();
@@ -227,16 +213,114 @@ pub const DownloadManager = struct {
 
         if (runtime) |state| {
             state.cancel_mutex.lock();
-            state.cancel_requested = true;
+            state.stop_action = .cancel;
             const pid = state.pid;
             state.cancel_mutex.unlock();
             if (pid) |process_id| {
                 std.posix.kill(process_id, std.posix.SIG.TERM) catch {};
+            } else {
+                return self.removeQueuedRecord(id, false);
             }
             return true;
         }
 
         return false;
+    }
+
+    pub fn pauseDownload(self: *DownloadManager, id: []const u8) !bool {
+        self.mutex.lock();
+        const record = self.findRecordByIdLocked(id) orelse {
+            self.mutex.unlock();
+            return false;
+        };
+        const runtime = record.runtime;
+        self.mutex.unlock();
+
+        if (runtime) |state| {
+            state.cancel_mutex.lock();
+            state.stop_action = .pause;
+            const pid = state.pid;
+            state.cancel_mutex.unlock();
+            if (pid) |process_id| {
+                std.posix.kill(process_id, std.posix.SIG.TERM) catch {};
+                return true;
+            }
+
+            self.mutex.lock();
+            if (self.findRecordByIdLocked(id)) |queued_record| {
+                queued_record.item.status = .paused;
+                queued_record.item.needsBrowserAuth = false;
+                queued_record.item.finishedAt = null;
+                if (queued_record.item.speedText) |value| {
+                    self.allocator.free(value);
+                    queued_record.item.speedText = null;
+                }
+                if (queued_record.item.etaText) |value| {
+                    self.allocator.free(value);
+                    queued_record.item.etaText = null;
+                }
+                if (queued_record.item.errorMessage) |value| {
+                    self.allocator.free(value);
+                }
+                queued_record.item.errorMessage = null;
+                try self.emitRecordByIdLocked(id, "downloadStateChanged");
+            }
+            self.mutex.unlock();
+            try self.writeShutdownRecoverySnapshot();
+            return true;
+        }
+
+        return false;
+    }
+
+    pub fn resumeDownload(self: *DownloadManager, id: []const u8) !bool {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+
+        const record = self.findRecordByIdLocked(id) orelse return false;
+        if (record.item.status != .paused and record.item.status != .failed) {
+            return false;
+        }
+        if (record.request.requiresBrowserAuth and record.request.headers == null) {
+            record.item.needsBrowserAuth = true;
+            if (record.item.errorMessage) |value| {
+                self.allocator.free(value);
+            }
+            record.item.errorMessage = try self.allocator.dupe(u8, "Resume requires a fresh browser handoff");
+            try self.emitRecordByIdLocked(id, "downloadStateChanged");
+            return error.FreshBrowserHandoffRequired;
+        }
+
+        if (record.runtime) |runtime| {
+            runtime.cancel_mutex.lock();
+            runtime.stop_action = .none;
+            runtime.pid = null;
+            runtime.cancel_mutex.unlock();
+
+            runtime.stderr_mutex.lock();
+            runtime.stderr_buffer.clearRetainingCapacity();
+            runtime.stderr_mutex.unlock();
+        }
+
+        record.item.status = .queued;
+        record.item.needsBrowserAuth = false;
+        record.item.finishedAt = null;
+        record.request.noClobber = true;
+        if (record.item.errorMessage) |value| {
+            self.allocator.free(value);
+            record.item.errorMessage = null;
+        }
+        if (record.item.speedText) |value| {
+            self.allocator.free(value);
+            record.item.speedText = null;
+        }
+        if (record.item.etaText) |value| {
+            self.allocator.free(value);
+            record.item.etaText = null;
+        }
+        try self.maybeStartQueuedDownloadsLocked();
+        try self.emitRecordByIdLocked(id, "downloadStateChanged");
+        return true;
     }
 
     pub fn deleteDownload(self: *DownloadManager, id: []const u8) !bool {
@@ -250,12 +334,13 @@ pub const DownloadManager = struct {
 
         if (runtime) |state| {
             state.cancel_mutex.lock();
-            state.cancel_requested = true;
-            state.delete_requested = true;
+            state.stop_action = .delete;
             const pid = state.pid;
             state.cancel_mutex.unlock();
             if (pid) |process_id| {
                 std.posix.kill(process_id, std.posix.SIG.TERM) catch {};
+            } else {
+                _ = try self.removeQueuedRecord(id, true);
             }
             return true;
         }
@@ -297,6 +382,13 @@ pub const DownloadManager = struct {
         if (cloned.maxSpeedBytes == null) cloned.maxSpeedBytes = current_settings.defaultMaxSpeedBytes;
         if (cloned.timeoutSeconds == null) cloned.timeoutSeconds = current_settings.defaultTimeoutSeconds;
         if (!cloned.noClobber) cloned.noClobber = current_settings.defaultNoClobber;
+        if (cloned.suggestedFilename) |value| {
+            const sanitized = sanitizeFilename(value);
+            if (!std.mem.eql(u8, sanitized, value)) {
+                self.allocator.free(value);
+                cloned.suggestedFilename = try self.allocator.dupe(u8, sanitized);
+            }
+        }
         return cloned;
     }
 
@@ -308,6 +400,8 @@ pub const DownloadManager = struct {
             if (status == .completed) record.item.progressPercent = 100;
             if (status == .completed or status == .failed or status == .cancelled) {
                 record.item.finishedAt = models.nowMillis();
+            } else {
+                record.item.finishedAt = null;
             }
             try self.emitRecordByIdLocked(id, "downloadStateChanged");
         }
@@ -371,44 +465,82 @@ pub const DownloadManager = struct {
         var removed_id: ?[]const u8 = null;
         var removed_output_path: ?[]u8 = null;
         var delete_after_cancel = false;
+        var retried = false;
+        var paused = false;
 
         self.mutex.lock();
         if (findRecordIndexByIdLocked(self, id)) |index| {
-            var record = self.records.items[index];
-            if (record.runtime) |runtime| {
-                runtime.cancel_mutex.lock();
-                delete_after_cancel = runtime.delete_requested;
-                runtime.cancel_mutex.unlock();
-            }
-            record.item.status = status;
-            if (status == .completed) record.item.progressPercent = 100;
-            if (status == .completed) {
-                if (record.item.totalBytes) |total_bytes| {
-                    record.item.downloadedBytes = total_bytes;
+            if (status == .failed and try self.retryFailedRecordLocked(index)) {
+                retried = true;
+            } else {
+                var record = &self.records.items[index];
+                if (record.runtime) |runtime| {
+                    runtime.cancel_mutex.lock();
+                    delete_after_cancel = runtime.stop_action == .delete;
+                    runtime.cancel_mutex.unlock();
+                }
+                if (status == .paused) {
+                    paused = true;
+                    record.item.status = .paused;
+                    record.item.needsBrowserAuth = record.request.requiresBrowserAuth and record.request.headers == null;
+                    record.item.finishedAt = null;
+                    if (record.item.errorMessage) |value| self.allocator.free(value);
+                    record.item.errorMessage = if (message) |value| try self.allocator.dupe(u8, value) else null;
+                    if (record.item.speedText) |value| {
+                        self.allocator.free(value);
+                        record.item.speedText = null;
+                    }
+                    if (record.item.etaText) |value| {
+                        self.allocator.free(value);
+                        record.item.etaText = null;
+                    }
+                    try self.emitRecordByIdLocked(id, "downloadStateChanged");
+                } else {
+                    var owned_record = self.records.items[index];
+                    owned_record.item.status = status;
+                    if (status == .completed) owned_record.item.progressPercent = 100;
+                    if (status == .completed) {
+                        if (owned_record.item.totalBytes) |total_bytes| {
+                            owned_record.item.downloadedBytes = total_bytes;
+                        }
+                    }
+                    owned_record.item.finishedAt = models.nowMillis();
+                    if (owned_record.item.errorMessage) |value| self.allocator.free(value);
+                    owned_record.item.errorMessage = if (message) |value| try self.allocator.dupe(u8, value) else null;
+                    history_item = .{
+                        .item = try owned_record.item.cloneOwned(self.allocator),
+                        .request = try scrubRequestForPersistence(self.allocator, owned_record.request),
+                    };
+                    removed_id = try self.allocator.dupe(u8, owned_record.item.id);
+                    if (delete_after_cancel) {
+                        removed_output_path = try self.allocator.dupe(u8, owned_record.item.outputPath);
+                    }
+                    _ = self.records.orderedRemove(index);
+                    owned_record.item.deinit(self.allocator);
+                    owned_record.request.deinit(self.allocator);
+                    if (owned_record.runtime) |runtime| {
+                        runtime.stderr_buffer.deinit();
+                        self.allocator.destroy(runtime);
+                    }
                 }
             }
-            record.item.finishedAt = models.nowMillis();
-            if (record.item.errorMessage) |value| self.allocator.free(value);
-            record.item.errorMessage = if (message) |value| try self.allocator.dupe(u8, value) else null;
-            history_item = .{
-                .item = try record.item.cloneOwned(self.allocator),
-                .request = try record.request.cloneOwned(self.allocator),
-            };
-            removed_id = try self.allocator.dupe(u8, record.item.id);
-            if (delete_after_cancel) {
-                removed_output_path = try self.allocator.dupe(u8, record.item.outputPath);
-            }
-            _ = self.records.orderedRemove(index);
-            record.item.deinit(self.allocator);
-            record.request.deinit(self.allocator);
-            if (record.runtime) |runtime| {
-                runtime.stderr_buffer.deinit();
-                self.allocator.destroy(runtime);
+            if (!paused) {
+                self.maybeStartQueuedDownloadsLocked() catch {};
             }
         }
         self.mutex.unlock();
         defer if (removed_id) |value| self.allocator.free(value);
         defer if (removed_output_path) |value| self.allocator.free(value);
+
+        if (retried) {
+            try self.writeShutdownRecoverySnapshot();
+            return;
+        }
+
+        if (paused) {
+            try self.writeShutdownRecoverySnapshot();
+            return;
+        }
 
         if (history_item) |value| {
             if (delete_after_cancel and status == .cancelled) {
@@ -432,6 +564,47 @@ pub const DownloadManager = struct {
         }
     }
 
+    fn retryFailedRecordLocked(self: *DownloadManager, index: usize) !bool {
+        const retry_limit = self.settings_store.get().autoRetryLimit;
+        if (retry_limit == 0) {
+            return false;
+        }
+
+        var record = &self.records.items[index];
+        if (retry_limit > 0 and record.retry_attempts >= @as(u32, @intCast(retry_limit))) {
+            return false;
+        }
+
+        const runtime = record.runtime orelse return false;
+        runtime.cancel_mutex.lock();
+        runtime.stop_action = .none;
+        runtime.pid = null;
+        runtime.cancel_mutex.unlock();
+
+        runtime.stderr_mutex.lock();
+        runtime.stderr_buffer.clearRetainingCapacity();
+        runtime.stderr_mutex.unlock();
+
+        record.retry_attempts += 1;
+        record.item.status = .queued;
+        record.item.finishedAt = null;
+        if (record.item.errorMessage) |value| {
+            self.allocator.free(value);
+            record.item.errorMessage = null;
+        }
+        if (record.item.speedText) |value| {
+            self.allocator.free(value);
+            record.item.speedText = null;
+        }
+        if (record.item.etaText) |value| {
+            self.allocator.free(value);
+            record.item.etaText = null;
+        }
+        try self.maybeStartQueuedDownloadsLocked();
+        try self.emitRecordByIdLocked(record.item.id, "downloadStateChanged");
+        return true;
+    }
+
     fn emitHistoryChanged(self: *DownloadManager) !void {
         const json = try self.history_store.toJson(self.allocator);
         defer self.allocator.free(json);
@@ -452,12 +625,145 @@ pub const DownloadManager = struct {
         return null;
     }
 
-    fn workerFinished(self: *DownloadManager) void {
+    fn maybeStartQueuedDownloadsLocked(self: *DownloadManager) !void {
+        const limit = self.settings_store.get().maxConcurrentDownloads;
+        while (true) {
+            if (limit > 0 and self.active_workers >= limit) {
+                return;
+            }
+
+            var next_runtime: ?*DownloadRuntime = null;
+            for (self.records.items) |*record| {
+                if (record.item.status != .queued) continue;
+                next_runtime = record.runtime;
+                break;
+            }
+
+            const runtime = next_runtime orelse return;
+            try self.startWorkerLocked(runtime);
+        }
+    }
+
+    fn startWorkerLocked(self: *DownloadManager, runtime: *DownloadRuntime) !void {
+        const record = self.findRecordByIdLocked(runtime.id) orelse return error.DownloadNotFound;
+        runtime.cancel_mutex.lock();
+        runtime.stop_action = .none;
+        runtime.pid = null;
+        runtime.cancel_mutex.unlock();
+
+        self.active_workers += 1;
+        const thread = std.Thread.spawn(.{}, downloadThreadMain, .{runtime}) catch |err| {
+            self.active_workers -= 1;
+            return err;
+        };
+        thread.detach();
+        record.item.status = .starting;
+        try self.emitRecordByIdLocked(runtime.id, "downloadStateChanged");
+    }
+
+    fn removeQueuedRecord(self: *DownloadManager, id: []const u8, delete_file: bool) !bool {
+        self.mutex.lock();
+        const index = findRecordIndexByIdLocked(self, id) orelse {
+            self.mutex.unlock();
+            return false;
+        };
+
+        var record = self.records.items[index];
+        const is_active = if (record.runtime) |runtime| blk: {
+            runtime.cancel_mutex.lock();
+            defer runtime.cancel_mutex.unlock();
+            break :blk runtime.pid != null;
+        } else false;
+        if (is_active) {
+            self.mutex.unlock();
+            return false;
+        }
+
+        _ = self.records.orderedRemove(index);
+        self.mutex.unlock();
+
+        const payload = if (!delete_file) blk: {
+            record.item.status = .cancelled;
+            record.item.needsBrowserAuth = false;
+            record.item.finishedAt = models.nowMillis();
+            if (record.item.errorMessage) |value| self.allocator.free(value);
+            record.item.errorMessage = try self.allocator.dupe(u8, "Download cancelled");
+            break :blk models.StoredHistoryItem{
+                .item = try record.item.cloneOwned(self.allocator),
+                .request = try scrubRequestForPersistence(self.allocator, record.request),
+            };
+        } else null;
+
+        defer record.item.deinit(self.allocator);
+        defer record.request.deinit(self.allocator);
+        if (record.runtime) |runtime| {
+            runtime.stderr_buffer.deinit();
+            self.allocator.destroy(runtime);
+        }
+
+        if (payload) |history_item| {
+            defer {
+                var mutable = history_item;
+                mutable.deinit(self.allocator);
+            }
+            try self.history_store.append(history_item);
+            try self.emitHistoryChanged();
+        }
+        if (delete_file) {
+            axel.deleteFile(record.item.outputPath) catch {};
+        }
+        try self.writeShutdownRecoverySnapshot();
+        const removed_payload = try models.jsonStringifyAlloc(self.allocator, RemovePayload{ .id = id }, .{});
+        defer self.allocator.free(removed_payload);
+        self.sink.emit(self.sink.ctx, "downloadRemoved", removed_payload);
+        return true;
+    }
+
+    fn restoreRecoveredRecord(self: *DownloadManager, entry: models.StoredHistoryItem) !void {
+        var owned = try entry.cloneOwned(self.allocator);
+        var transferred = false;
+        errdefer if (!transferred) owned.deinit(self.allocator);
+
+        const runtime = try self.allocator.create(DownloadRuntime);
+        var runtime_transferred = false;
+        errdefer if (!runtime_transferred) self.allocator.destroy(runtime);
+        runtime.* = DownloadRuntime.init(self.allocator, self, owned.item.id);
+
+        owned.item.status = .paused;
+        owned.item.needsBrowserAuth = owned.request.requiresBrowserAuth and owned.request.headers == null;
+        owned.item.finishedAt = null;
+
         self.mutex.lock();
         defer self.mutex.unlock();
+        if (self.findRecordByIdLocked(owned.item.id) != null) {
+            runtime.stderr_buffer.deinit();
+            self.allocator.destroy(runtime);
+            owned.deinit(self.allocator);
+            return;
+        }
+
+        const current_numeric = parseNumericIdSuffix(owned.item.id) orelse self.next_id;
+        if (current_numeric >= self.next_id) {
+            self.next_id = current_numeric + 1;
+        }
+
+        try self.records.append(.{
+            .item = owned.item,
+            .request = owned.request,
+            .runtime = runtime,
+        });
+        transferred = true;
+        runtime_transferred = true;
+        try self.emitRecordByIdLocked(owned.item.id, "downloadStateChanged");
+    }
+
+    fn workerFinished(self: *DownloadManager) void {
+        self.mutex.lock();
         if (self.active_workers > 0) {
             self.active_workers -= 1;
         }
+        self.maybeStartQueuedDownloadsLocked() catch {};
+        self.mutex.unlock();
     }
 
     fn writeShutdownRecoverySnapshot(self: *DownloadManager) !void {
@@ -480,16 +786,28 @@ pub const DownloadManager = struct {
 
         for (self.records.items) |record| {
             var item = try record.item.cloneOwned(self.allocator);
-            item.status = .cancelled;
-            item.finishedAt = models.nowMillis();
+            item.status = .paused;
+            item.finishedAt = null;
             if (item.errorMessage) |value| {
                 self.allocator.free(value);
             }
-            item.errorMessage = try self.allocator.dupe(u8, "Download paused when app closed");
+            const needs_browser_handoff = record.request.requiresBrowserAuth;
+            item.needsBrowserAuth = needs_browser_handoff;
+            item.errorMessage = try self.allocator.dupe(
+                u8,
+                if (needs_browser_handoff)
+                    "Download paused when app closed. Resume may require a fresh browser handoff."
+                else
+                    "Download paused when app closed",
+            );
+
+            var request = try record.request.cloneOwned(self.allocator);
+            request.deinit(self.allocator);
+            request = try scrubRequestForPersistence(self.allocator, record.request);
 
             try snapshot.append(.{
                 .item = item,
-                .request = try record.request.cloneOwned(self.allocator),
+                .request = request,
             });
         }
 
@@ -577,9 +895,9 @@ fn runDownload(runtime: *DownloadRuntime) !void {
     try child.spawn();
     runtime.cancel_mutex.lock();
     runtime.pid = child.id;
-    const cancel_requested = runtime.cancel_requested;
+    const stop_action = runtime.stop_action;
     runtime.cancel_mutex.unlock();
-    if (cancel_requested) {
+    if (stop_action != .none) {
         std.posix.kill(child.id, std.posix.SIG.TERM) catch {};
     }
 
@@ -593,14 +911,11 @@ fn runDownload(runtime: *DownloadRuntime) !void {
     const term = try child.wait();
     runtime.cancel_mutex.lock();
     runtime.pid = null;
+    const final_stop_action = runtime.stop_action;
     runtime.cancel_mutex.unlock();
     stdout_thread.join();
     stderr_thread.join();
     size_thread.join();
-
-    runtime.cancel_mutex.lock();
-    const cancelled = runtime.cancel_requested;
-    runtime.cancel_mutex.unlock();
 
     const stderr_text = blk: {
         runtime.stderr_mutex.lock();
@@ -611,7 +926,9 @@ fn runDownload(runtime: *DownloadRuntime) !void {
 
     switch (term) {
         .Exited => |code| {
-            if (cancelled) {
+            if (final_stop_action == .pause) {
+                try manager.complete(runtime.id, .paused, "Download paused");
+            } else if (final_stop_action == .cancel or final_stop_action == .delete) {
                 try manager.complete(runtime.id, .cancelled, "Download cancelled");
             } else if (code == 0) {
                 try manager.complete(runtime.id, .completed, null);
@@ -620,7 +937,9 @@ fn runDownload(runtime: *DownloadRuntime) !void {
             }
         },
         else => {
-            if (cancelled) {
+            if (final_stop_action == .pause) {
+                try manager.complete(runtime.id, .paused, "Download paused");
+            } else if (final_stop_action == .cancel or final_stop_action == .delete) {
                 try manager.complete(runtime.id, .cancelled, "Download cancelled");
             } else {
                 try manager.complete(runtime.id, .failed, stderr_text orelse "Axel terminated unexpectedly");
@@ -708,9 +1027,12 @@ fn refreshDownloadedBytes(self: *DownloadManager, id: []const u8, output_path: [
 fn deriveOutputPath(
     allocator: std.mem.Allocator,
     app_settings: models.AppSettings,
-    url: []const u8,
+    request: models.StartDownloadRequest,
 ) ![]u8 {
-    const safe_name = filenameFromUrl(url);
+    const safe_name = if (request.suggestedFilename) |value|
+        sanitizeFilename(value)
+    else
+        sanitizeFilename(filenameFromUrl(request.url));
     return std.fs.path.join(allocator, &.{ app_settings.defaultDownloadDir, safe_name });
 }
 
@@ -732,6 +1054,33 @@ fn filenameFromUrl(url: []const u8) []const u8 {
         return "download.bin";
     }
     return filename;
+}
+
+fn sanitizeFilename(name: []const u8) []const u8 {
+    const basename = std.fs.path.basename(name);
+    if (basename.len == 0 or std.mem.eql(u8, basename, ".") or std.mem.eql(u8, basename, "..")) {
+        return "download.bin";
+    }
+    return basename;
+}
+
+fn scrubRequestForPersistence(allocator: std.mem.Allocator, request: models.StartDownloadRequest) !models.StartDownloadRequest {
+    var cloned = try request.cloneOwned(allocator);
+    if (cloned.headers) |headers| {
+        for (headers) |header| allocator.free(header);
+        allocator.free(headers);
+        cloned.headers = null;
+    }
+    if (cloned.userAgent) |value| {
+        allocator.free(value);
+        cloned.userAgent = null;
+    }
+    return cloned;
+}
+
+fn parseNumericIdSuffix(id: []const u8) ?usize {
+    const underscore = std.mem.lastIndexOfScalar(u8, id, '_') orelse return null;
+    return std.fmt.parseInt(usize, id[underscore + 1 ..], 10) catch null;
 }
 
 const LineBreak = struct {

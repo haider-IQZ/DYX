@@ -31,6 +31,7 @@ Item {
         "gear": true,
         "harddrive": true,
         "image": true,
+        "infinity": true,
         "link": true,
         "pause": true,
         "play": true,

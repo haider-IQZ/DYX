@@ -21,7 +21,6 @@ struct DownloadEntry {
     QString progressText;
     double progressPercent = 0.0;
     QString statusText;
-    QString statusColor;
 };
 
 class DownloadListModel final : public QAbstractListModel {
@@ -49,7 +48,6 @@ public:
         ProgressTextRole,
         ProgressPercentRole,
         StatusTextRole,
-        StatusColorRole,
     };
     Q_ENUM(Roles)
 
@@ -67,10 +65,8 @@ public:
     void setSearchQuery(const QString &query);
 
     void setItems(const QList<DownloadEntry> &items);
-    const QList<DownloadEntry> &visibleItems() const;
     const QList<DownloadEntry> &allItems() const;
     DownloadEntry itemForId(const QString &id) const;
-    bool containsId(const QString &id) const;
 
 signals:
     void countChanged();

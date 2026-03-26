@@ -42,6 +42,20 @@ bool SettingsModel::autoRetryOnFail() const { return m_autoRetryOnFail; }
 void SettingsModel::setAutoRetryOnFail(bool value) {
     if (m_autoRetryOnFail == value) return;
     m_autoRetryOnFail = value;
+    if (!m_autoRetryOnFail) {
+        m_autoRetryLimit = 0;
+    } else if (m_autoRetryLimit == 0) {
+        m_autoRetryLimit = 3;
+    }
+    emit changed();
+}
+
+int SettingsModel::autoRetryLimit() const { return m_autoRetryLimit; }
+void SettingsModel::setAutoRetryLimit(int value) {
+    const int normalized = value < -1 ? -1 : value;
+    if (m_autoRetryLimit == normalized) return;
+    m_autoRetryLimit = normalized;
+    m_autoRetryOnFail = m_autoRetryLimit != 0;
     emit changed();
 }
 
@@ -58,7 +72,17 @@ void SettingsModel::fromJson(const QJsonObject &json) {
     m_defaultTimeoutSeconds = json.value("defaultTimeoutSeconds").toInt(m_defaultTimeoutSeconds);
     m_maxConcurrentDownloads = json.value("maxConcurrentDownloads").toInt(m_maxConcurrentDownloads);
     m_defaultNoClobber = json.value("defaultNoClobber").toBool(m_defaultNoClobber);
-    m_autoRetryOnFail = json.value("autoRetryOnFail").toBool(m_autoRetryOnFail);
+    const bool legacyAutoRetry = json.value("autoRetryOnFail").toBool(m_autoRetryOnFail);
+    const QJsonValue retryLimitValue = json.value("autoRetryLimit");
+    if (!retryLimitValue.isUndefined() && !retryLimitValue.isNull()) {
+        m_autoRetryLimit = retryLimitValue.toInt(m_autoRetryLimit);
+    } else {
+        m_autoRetryLimit = legacyAutoRetry ? 3 : 0;
+    }
+    if (m_autoRetryLimit < -1) {
+        m_autoRetryLimit = -1;
+    }
+    m_autoRetryOnFail = m_autoRetryLimit != 0;
     m_theme = json.value("theme").toString(m_theme);
     emit changed();
 }
@@ -70,7 +94,8 @@ QJsonObject SettingsModel::toJson() const {
         {"defaultTimeoutSeconds", m_defaultTimeoutSeconds},
         {"maxConcurrentDownloads", m_maxConcurrentDownloads},
         {"defaultNoClobber", m_defaultNoClobber},
-        {"autoRetryOnFail", m_autoRetryOnFail},
+        {"autoRetryOnFail", m_autoRetryLimit != 0},
+        {"autoRetryLimit", m_autoRetryLimit},
         {"theme", m_theme},
     };
 }

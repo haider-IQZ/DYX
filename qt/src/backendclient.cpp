@@ -1,12 +1,13 @@
 #include "backendclient.h"
+#include "firefoxcatcherlog.h"
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QDir>
 #include <QEventLoop>
-#include <QFileDialog>
 #include <QFileInfo>
 #include <QFileInfoList>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonValue>
 #include <QRegularExpression>
@@ -20,12 +21,112 @@ QString requestId(quint64 nextId) {
     return QStringLiteral("req_%1").arg(nextId);
 }
 
-QString humanStatus(const QString &status) {
-    if (status == QStringLiteral("completed")) return QStringLiteral("Completed");
-    if (status == QStringLiteral("downloading")) return QStringLiteral("Downloading");
-    if (status == QStringLiteral("paused")) return QStringLiteral("Paused");
-    if (status == QStringLiteral("error")) return QStringLiteral("Error");
-    return QStringLiteral("Queued");
+struct ExternalDownloadContext {
+    QString url;
+    int connections = 0;
+    QString savePath;
+    QString suggestedFilename;
+    QString userAgent;
+    QString referrer;
+    QString pageTitle;
+    QString source;
+    QString correlationId;
+    bool requiresBrowserAuth = false;
+    QStringList headers;
+};
+
+QString fallbackFilenameForUrl(const QString &url) {
+    const QUrl parsedUrl(url);
+    const QString basename = QFileInfo(parsedUrl.path()).fileName().trimmed();
+    return basename.isEmpty() ? QStringLiteral("download.bin") : basename;
+}
+
+QString sanitizedFilename(QString fileName) {
+    fileName = QFileInfo(fileName.trimmed()).fileName().trimmed();
+    return fileName.isEmpty() ? QStringLiteral("download.bin") : fileName;
+}
+
+bool hasHeaderNamed(const QStringList &headers, const QString &name) {
+    const QString normalizedName = name.trimmed().toLower();
+    for (const QString &header : headers) {
+        const int colonIndex = header.indexOf(':');
+        if (colonIndex <= 0) {
+            continue;
+        }
+        if (header.left(colonIndex).trimmed().toLower() == normalizedName) {
+            return true;
+        }
+    }
+    return false;
+}
+
+QStringList jsonStringList(const QJsonValue &value) {
+    QStringList headers;
+    const QJsonArray array = value.toArray();
+    headers.reserve(array.size());
+    for (const QJsonValue &entry : array) {
+        const QString header = entry.toString().trimmed();
+        if (!header.isEmpty()) {
+            headers.push_back(header);
+        }
+    }
+    return headers;
+}
+
+QJsonObject buildStartDownloadParams(
+    const ExternalDownloadContext &context
+) {
+    QStringList headers = context.headers;
+    if (!context.referrer.trimmed().isEmpty() && !hasHeaderNamed(headers, QStringLiteral("referer"))) {
+        headers.push_back(QStringLiteral("Referer: %1").arg(context.referrer.trimmed()));
+    }
+
+    const QString fileName = sanitizedFilename(
+        context.suggestedFilename.trimmed().isEmpty()
+            ? fallbackFilenameForUrl(context.url)
+            : context.suggestedFilename
+    );
+
+    QString outputPath;
+    if (!context.savePath.trimmed().isEmpty()) {
+        outputPath = QDir(context.savePath.trimmed()).filePath(fileName);
+    }
+
+    QJsonObject params{
+        {QStringLiteral("url"), context.url.trimmed()},
+        {QStringLiteral("connections"), context.connections},
+        {QStringLiteral("suggestedFilename"), fileName},
+        {QStringLiteral("correlationId"), context.correlationId.trimmed()},
+        {QStringLiteral("requiresBrowserAuth"), context.requiresBrowserAuth},
+    };
+    if (!outputPath.isEmpty()) {
+        params.insert(QStringLiteral("outputPath"), outputPath);
+    }
+    if (!context.userAgent.trimmed().isEmpty()) {
+        params.insert(QStringLiteral("userAgent"), context.userAgent.trimmed());
+    }
+    if (!headers.isEmpty()) {
+        QJsonArray headerArray;
+        for (const QString &header : headers) {
+            headerArray.append(header);
+        }
+        params.insert(QStringLiteral("headers"), headerArray);
+    }
+    return params;
+}
+
+QString startDownloadError(const QJsonObject &response) {
+    const QString error = response.value(QStringLiteral("error")).toString().trimmed();
+    if (error == QStringLiteral("DownloadAlreadyActive")) {
+        return QStringLiteral("A download is already active for that target file.");
+    }
+    if (error == QStringLiteral("FreshBrowserHandoffRequired")) {
+        return QStringLiteral("This download needs a fresh browser handoff before DYX can resume it.");
+    }
+    if (!error.isEmpty()) {
+        return error;
+    }
+    return QStringLiteral("DYX backend did not create the download.");
 }
 }
 
@@ -41,6 +142,14 @@ BackendClient::BackendClient(QObject *parent)
         setErrorMessage(m_process.errorString());
         setBackendConnected(false);
     });
+    m_historySyncTimer.setInterval(3000);
+    connect(&m_historySyncTimer, &QTimer::timeout, this, [this]() {
+        if (pruneMissingHistory(true)) {
+            rebuildDownloads();
+            updateStats();
+        }
+    });
+    m_historySyncTimer.start();
 
     launchBackend();
     if (m_backendConnected) {
@@ -63,10 +172,6 @@ SettingsModel *BackendClient::settingsModel() { return &m_settingsModel; }
 int BackendClient::activeCount() const { return m_activeCount; }
 int BackendClient::totalCount() const { return m_totalCount; }
 QString BackendClient::downloadSpeedText() const { return formatSize(m_downloadSpeedBytes) + QStringLiteral("/s"); }
-QString BackendClient::axelVersion() const { return m_axelVersion; }
-bool BackendClient::axelAvailable() const { return m_axelAvailable; }
-QString BackendClient::errorMessage() const { return m_errorMessage; }
-bool BackendClient::backendConnected() const { return m_backendConnected; }
 
 void BackendClient::refresh() {
     if (m_process.state() != QProcess::Running) {
@@ -79,7 +184,6 @@ void BackendClient::refresh() {
     const auto downloadsResponse = sendRequest(QStringLiteral("listDownloads"));
     const auto historyResponse = sendRequest(QStringLiteral("listHistory"));
     const auto settingsResponse = sendRequest(QStringLiteral("getSettings"));
-    const auto axelResponse = sendRequest(QStringLiteral("checkAxel"));
 
     if (downloadsResponse.value("ok").toBool()) {
         m_downloads = downloadsResponse.value("result").toArray();
@@ -98,15 +202,10 @@ void BackendClient::refresh() {
     }
     if (historyResponse.value("ok").toBool()) {
         m_history = historyResponse.value("result").toArray();
+        pruneMissingHistory(true);
     }
     if (settingsResponse.value("ok").toBool()) {
         m_settingsModel.fromJson(settingsResponse.value("result").toObject());
-    }
-    if (axelResponse.value("ok").toBool()) {
-        const auto status = axelResponse.value("result").toObject();
-        m_axelAvailable = status.value("available").toBool(true);
-        m_axelVersion = status.value("version").toString(m_axelAvailable ? QStringLiteral("Available") : QStringLiteral("Missing"));
-        emit axelStatusChanged();
     }
 
     rebuildDownloads();
@@ -127,33 +226,184 @@ void BackendClient::startDownload(const QString &url, int connections, const QSt
         return;
     }
 
-    QString fileName = optionalFilename.trimmed();
-    if (fileName.isEmpty()) {
-        const auto parsedUrl = QUrl(url);
-        fileName = pathBasename(parsedUrl.path());
-        if (fileName.isEmpty()) {
-            fileName = QStringLiteral("download");
+    ExternalDownloadContext context;
+    context.url = url.trimmed();
+    context.connections = connections;
+    context.savePath = savePath;
+    context.suggestedFilename = optionalFilename;
+
+    const QJsonObject params = buildStartDownloadParams(context);
+
+    sendRequestAsync(QStringLiteral("startDownload"), params, [this](const QJsonObject &response) {
+        if (!response.value(QStringLiteral("ok")).toBool()) {
+            setErrorMessage(startDownloadError(response));
+            return;
         }
-    }
 
-    QString outputPath;
-    if (!savePath.trimmed().isEmpty()) {
-        outputPath = QDir(savePath.trimmed()).filePath(fileName);
-    }
+        const auto created = response.value(QStringLiteral("result")).toObject();
+        if (created.isEmpty()) {
+            setErrorMessage(QStringLiteral("DYX backend did not return a created download."));
+            return;
+        }
 
-    QJsonObject params{
-        {QStringLiteral("url"), url.trimmed()},
-        {QStringLiteral("connections"), connections},
-    };
-    if (!outputPath.isEmpty()) {
-        params.insert(QStringLiteral("outputPath"), outputPath);
-    }
+        upsertDownload(created);
+        rebuildDownloads();
+    });
+}
 
-    const auto response = sendRequest(QStringLiteral("startDownload"), params);
-    if (!response.value("ok").toBool()) {
+void BackendClient::enqueueExternalDownload(const QJsonObject &command) {
+    FirefoxCatcherLog::append(
+        QStringLiteral("backend-external.ndjson"),
+        QStringLiteral("backend"),
+        QStringLiteral("external_enqueue_received"),
+        command
+    );
+    const QJsonObject response = handleExternalCommand(command);
+    if (!response.value(QStringLiteral("ok")).toBool()) {
+        FirefoxCatcherLog::append(
+            QStringLiteral("backend-external.ndjson"),
+            QStringLiteral("backend"),
+            QStringLiteral("external_enqueue_failed"),
+            QJsonObject{
+                {QStringLiteral("command"), command},
+                {QStringLiteral("response"), response}
+            }
+        );
+        setErrorMessage(response.value(QStringLiteral("error")).toString());
         return;
     }
-    refresh();
+    FirefoxCatcherLog::append(
+        QStringLiteral("backend-external.ndjson"),
+        QStringLiteral("backend"),
+        QStringLiteral("external_enqueue_accepted"),
+        QJsonObject{
+            {QStringLiteral("command"), command},
+            {QStringLiteral("response"), response}
+        }
+    );
+}
+
+QJsonObject BackendClient::handleExternalCommand(const QJsonObject &command) {
+    const QString type = command.value(QStringLiteral("type")).toString();
+    if (type != QStringLiteral("enqueue_download")) {
+        return QJsonObject{
+            {QStringLiteral("ok"), false},
+            {QStringLiteral("error"), QStringLiteral("Unsupported external command.")},
+        };
+    }
+
+    const QString url = command.value(QStringLiteral("url")).toString().trimmed();
+    const QUrl parsedUrl(url);
+    if (url.isEmpty() || !parsedUrl.isValid() || (parsedUrl.scheme() != QStringLiteral("http") && parsedUrl.scheme() != QStringLiteral("https"))) {
+        return QJsonObject{
+            {QStringLiteral("ok"), false},
+            {QStringLiteral("error"), QStringLiteral("Ignored invalid external download request.")},
+        };
+    }
+
+    if (m_process.state() != QProcess::Running) {
+        launchBackend();
+    }
+    if (m_process.state() != QProcess::Running) {
+        return QJsonObject{
+            {QStringLiteral("ok"), false},
+            {QStringLiteral("error"), QStringLiteral("DYX backend is not available.")},
+        };
+    }
+
+    ExternalDownloadContext context;
+    context.url = url;
+    context.connections = m_settingsModel.defaultConnections();
+    context.savePath = !m_settingsModel.defaultDownloadDir().trimmed().isEmpty()
+        ? m_settingsModel.defaultDownloadDir().trimmed()
+        : QDir::homePath();
+    context.suggestedFilename = command.value(QStringLiteral("suggestedFilename")).toString().trimmed();
+    if (context.suggestedFilename.isEmpty()) {
+        context.suggestedFilename = command.value(QStringLiteral("filename")).toString().trimmed();
+    }
+    context.userAgent = command.value(QStringLiteral("userAgent")).toString().trimmed();
+    context.referrer = command.value(QStringLiteral("referrer")).toString().trimmed();
+    context.pageTitle = command.value(QStringLiteral("pageTitle")).toString().trimmed();
+    context.source = command.value(QStringLiteral("source")).toString().trimmed();
+    context.correlationId = command.value(QStringLiteral("correlationId")).toString().trimmed();
+    context.headers = jsonStringList(command.value(QStringLiteral("headers")));
+    context.requiresBrowserAuth = command.value(QStringLiteral("requiresBrowserAuth")).toBool(
+        hasHeaderNamed(context.headers, QStringLiteral("cookie"))
+            || hasHeaderNamed(context.headers, QStringLiteral("authorization"))
+    );
+
+    FirefoxCatcherLog::append(
+        QStringLiteral("backend-external.ndjson"),
+        QStringLiteral("backend"),
+        QStringLiteral("external_enqueue_validated"),
+        QJsonObject{
+            {QStringLiteral("url"), url},
+            {QStringLiteral("source"), context.source},
+            {QStringLiteral("correlationId"), context.correlationId},
+            {QStringLiteral("filenamePresent"), !context.suggestedFilename.isEmpty()},
+            {QStringLiteral("referrerPresent"), !context.referrer.isEmpty()},
+            {QStringLiteral("pageTitlePresent"), !context.pageTitle.isEmpty()},
+            {QStringLiteral("userAgentPresent"), !context.userAgent.isEmpty()},
+            {QStringLiteral("headerCount"), context.headers.size()},
+            {QStringLiteral("requiresBrowserAuth"), context.requiresBrowserAuth},
+            {QStringLiteral("savePath"), context.savePath},
+            {QStringLiteral("connections"), context.connections}
+        }
+    );
+    const QJsonObject params = buildStartDownloadParams(context);
+    const QJsonObject response = sendRequest(QStringLiteral("startDownload"), params);
+    if (!response.value(QStringLiteral("ok")).toBool()) {
+        FirefoxCatcherLog::append(
+            QStringLiteral("backend-external.ndjson"),
+            QStringLiteral("backend"),
+            QStringLiteral("external_enqueue_backend_rejected"),
+            QJsonObject{
+                {QStringLiteral("url"), url},
+                {QStringLiteral("response"), response}
+            }
+        );
+        return QJsonObject{
+            {QStringLiteral("ok"), false},
+            {QStringLiteral("error"), startDownloadError(response)},
+        };
+    }
+
+    const QJsonObject created = response.value(QStringLiteral("result")).toObject();
+    if (created.isEmpty() || created.value(QStringLiteral("id")).toString().isEmpty()) {
+        FirefoxCatcherLog::append(
+            QStringLiteral("backend-external.ndjson"),
+            QStringLiteral("backend"),
+            QStringLiteral("external_enqueue_backend_empty_result"),
+            QJsonObject{
+                {QStringLiteral("url"), url},
+                {QStringLiteral("response"), response}
+            }
+        );
+        return QJsonObject{
+            {QStringLiteral("ok"), false},
+            {QStringLiteral("error"), QStringLiteral("DYX backend did not create the download.")},
+        };
+    }
+
+    upsertDownload(created);
+    rebuildDownloads();
+    FirefoxCatcherLog::append(
+        QStringLiteral("backend-external.ndjson"),
+        QStringLiteral("backend"),
+        QStringLiteral("external_enqueue_backend_created"),
+        QJsonObject{
+            {QStringLiteral("url"), url},
+            {QStringLiteral("correlationId"), context.correlationId},
+            {QStringLiteral("downloadId"), created.value(QStringLiteral("id")).toString()},
+            {QStringLiteral("status"), created.value(QStringLiteral("status")).toString()}
+        }
+    );
+
+    return QJsonObject{
+        {QStringLiteral("ok"), true},
+        {QStringLiteral("downloadId"), created.value(QStringLiteral("id")).toString()},
+        {QStringLiteral("correlationId"), context.correlationId}
+    };
 }
 
 void BackendClient::togglePause(const QString &id) {
@@ -161,9 +411,20 @@ void BackendClient::togglePause(const QString &id) {
     if (item.id.isEmpty()) return;
 
     if (item.status == QStringLiteral("downloading") || item.status == QStringLiteral("queued")) {
-        sendRequest(QStringLiteral("cancelDownload"), QJsonObject{{QStringLiteral("id"), id}});
-    } else if (item.status == QStringLiteral("paused") || item.status == QStringLiteral("error")) {
-        sendRequest(QStringLiteral("retryDownload"), QJsonObject{{QStringLiteral("id"), id}});
+        const auto response = sendRequest(QStringLiteral("pauseDownload"), QJsonObject{{QStringLiteral("id"), id}});
+        if (!response.value(QStringLiteral("ok")).toBool()) {
+            setErrorMessage(startDownloadError(response));
+        }
+    } else if (item.status == QStringLiteral("paused")) {
+        const auto response = sendRequest(QStringLiteral("resumeDownload"), QJsonObject{{QStringLiteral("id"), id}});
+        if (!response.value(QStringLiteral("ok")).toBool()) {
+            setErrorMessage(startDownloadError(response));
+        }
+    } else if (item.status == QStringLiteral("error")) {
+        const auto response = sendRequest(QStringLiteral("retryDownload"), QJsonObject{{QStringLiteral("id"), id}});
+        if (!response.value(QStringLiteral("ok")).toBool()) {
+            setErrorMessage(startDownloadError(response));
+        }
     }
 }
 
@@ -220,24 +481,6 @@ void BackendClient::openFolder(const QString &id) {
     const auto item = m_downloadsModel.itemForId(id);
     if (item.id.isEmpty()) return;
     sendRequest(QStringLiteral("openFolder"), QJsonObject{{QStringLiteral("path"), item.outputPath}});
-}
-
-void BackendClient::openFile(const QString &id) {
-    const auto item = m_downloadsModel.itemForId(id);
-    if (item.id.isEmpty()) return;
-    sendRequest(QStringLiteral("openFile"), QJsonObject{{QStringLiteral("path"), item.outputPath}});
-}
-
-QString BackendClient::pickDirectory(const QString &initialPath) {
-    const QString selection = QFileDialog::getExistingDirectory(
-        nullptr,
-        QStringLiteral("Choose Download Folder"),
-        initialPath.isEmpty() ? m_settingsModel.defaultDownloadDir() : initialPath
-    );
-    if (!selection.isEmpty()) {
-        emit directoryPicked(selection);
-    }
-    return selection;
 }
 
 QString BackendClient::homeDirectory() const {
@@ -324,7 +567,6 @@ void BackendClient::launchBackend() {
         setErrorMessage(QStringLiteral("Failed to start dyx-backend: %1").arg(m_process.errorString()));
         return;
     }
-
     setBackendConnected(true);
 }
 
@@ -369,6 +611,8 @@ void BackendClient::handleStdout() {
 }
 
 void BackendClient::handleBackendFinished() {
+    m_responses.clear();
+    m_responseHandlers.clear();
     setBackendConnected(false);
 }
 
@@ -387,7 +631,20 @@ void BackendClient::handleBackendLine(const QByteArray &line) {
 }
 
 void BackendClient::handleResponse(const QJsonObject &response) {
-    m_responses.insert(response.value(QStringLiteral("id")).toString(), response);
+    const QString id = response.value(QStringLiteral("id")).toString();
+    if (id.isEmpty()) {
+        return;
+    }
+
+    auto handlerIt = m_responseHandlers.find(id);
+    if (handlerIt != m_responseHandlers.end()) {
+        auto handler = std::move(handlerIt.value());
+        m_responseHandlers.erase(handlerIt);
+        handler(response);
+        return;
+    }
+
+    m_responses.insert(id, response);
 }
 
 void BackendClient::handleEvent(const QJsonObject &event) {
@@ -396,17 +653,7 @@ void BackendClient::handleEvent(const QJsonObject &event) {
 
     if (eventName == QStringLiteral("downloadStateChanged")) {
         const auto next = payload.toObject();
-        bool replaced = false;
-        for (int i = 0; i < m_downloads.size(); ++i) {
-            if (m_downloads.at(i).toObject().value(QStringLiteral("id")).toString() == next.value(QStringLiteral("id")).toString()) {
-                m_downloads[i] = next;
-                replaced = true;
-                break;
-            }
-        }
-        if (!replaced) {
-            m_downloads.prepend(next);
-        }
+        upsertDownload(next);
         rebuildDownloads();
         return;
     }
@@ -427,15 +674,12 @@ void BackendClient::handleEvent(const QJsonObject &event) {
 
     if (eventName == QStringLiteral("historyChanged")) {
         m_history = payload.toArray();
+        pruneMissingHistory(false);
         rebuildDownloads();
         return;
     }
 
     if (eventName == QStringLiteral("axelAvailabilityChanged")) {
-        const auto status = payload.toObject();
-        m_axelAvailable = status.value(QStringLiteral("available")).toBool(true);
-        m_axelVersion = status.value(QStringLiteral("version")).toString(m_axelAvailable ? QStringLiteral("Available") : QStringLiteral("Missing"));
-        emit axelStatusChanged();
         return;
     }
 
@@ -461,48 +705,108 @@ QJsonObject BackendClient::sendRequest(const QString &method, const QJsonValue &
 
     const QByteArray line = QJsonDocument(request).toJson(QJsonDocument::Compact) + '\n';
     m_process.write(line);
-    m_process.waitForBytesWritten();
 
     QElapsedTimer timer;
     timer.start();
     while (!m_responses.contains(id) && timer.elapsed() < 20000) {
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
         if (m_process.state() != QProcess::Running) {
             break;
         }
-        if (m_process.bytesAvailable() > 0 || m_process.waitForReadyRead(50)) {
+        if (m_process.bytesAvailable() > 0 || m_process.waitForReadyRead(10)) {
             handleStdout();
         }
     }
 
     const auto response = m_responses.take(id);
-    if (response.isEmpty()) {
-        setErrorMessage(QStringLiteral("Timed out waiting for backend response to %1").arg(method));
-        return {};
-    }
-
-    if (!response.value(QStringLiteral("ok")).toBool()) {
-        setErrorMessage(response.value(QStringLiteral("error")).toString(QStringLiteral("Backend request failed")));
-    } else if (!m_errorMessage.isEmpty()) {
-        setErrorMessage({});
-    }
     return response;
 }
 
-void BackendClient::setErrorMessage(const QString &message) {
-    if (m_errorMessage == message) {
-        return;
+QString BackendClient::sendRequestAsync(const QString &method, const QJsonValue &params, ResponseHandler handler) {
+    if (m_process.state() != QProcess::Running) {
+        launchBackend();
     }
+    if (m_process.state() != QProcess::Running) {
+        return {};
+    }
+
+    const QString id = requestId(m_nextId++);
+    QJsonObject request{
+        {QStringLiteral("id"), id},
+        {QStringLiteral("method"), method},
+        {QStringLiteral("params"), params.isUndefined() ? QJsonObject{} : params},
+    };
+
+    if (handler) {
+        m_responseHandlers.insert(id, std::move(handler));
+    }
+
+    const QByteArray line = QJsonDocument(request).toJson(QJsonDocument::Compact) + '\n';
+    m_process.write(line);
+    return id;
+}
+
+void BackendClient::setErrorMessage(const QString &message) {
     m_errorMessage = message;
-    emit errorMessageChanged();
 }
 
 void BackendClient::setBackendConnected(bool connected) {
-    if (m_backendConnected == connected) {
+    m_backendConnected = connected;
+}
+
+bool BackendClient::pruneMissingHistory(bool notifyBackend) {
+    if (m_history.isEmpty()) {
+        return false;
+    }
+
+    QJsonArray filtered;
+    QSet<QString> missingCompletedPaths;
+
+    for (const auto &item : m_history) {
+        const auto object = item.toObject();
+        const QString status = object.value(QStringLiteral("status")).toString();
+        const QString outputPath = object.value(QStringLiteral("outputPath")).toString();
+        const bool shouldPrune = status == QStringLiteral("completed")
+            && !outputPath.isEmpty()
+            && !QFileInfo::exists(outputPath);
+
+        if (shouldPrune) {
+            missingCompletedPaths.insert(outputPath);
+            continue;
+        }
+
+        filtered.append(object);
+    }
+
+    if (missingCompletedPaths.isEmpty()) {
+        return false;
+    }
+
+    m_history = filtered;
+
+    if (notifyBackend) {
+        for (const auto &path : missingCompletedPaths) {
+            sendRequest(QStringLiteral("removeHistoryByPath"), QJsonObject{{QStringLiteral("path"), path}});
+        }
+    }
+
+    return true;
+}
+
+void BackendClient::upsertDownload(const QJsonObject &download) {
+    const QString id = download.value(QStringLiteral("id")).toString();
+    if (id.isEmpty()) {
         return;
     }
-    m_backendConnected = connected;
-    emit backendConnectedChanged();
+
+    for (int i = 0; i < m_downloads.size(); ++i) {
+        if (m_downloads.at(i).toObject().value(QStringLiteral("id")).toString() == id) {
+            m_downloads[i] = download;
+            return;
+        }
+    }
+
+    m_downloads.prepend(download);
 }
 
 void BackendClient::rebuildDownloads() {
@@ -530,7 +834,9 @@ void BackendClient::rebuildDownloads() {
         entry.speedText = object.value(QStringLiteral("speedText")).toString();
         entry.etaText = object.value(QStringLiteral("etaText")).toString();
         entry.speedBytes = speedToBytes(entry.speedText);
-        entry.status = mapStatus(object.value(QStringLiteral("status")).toString());
+        const QString backendStatus = object.value(QStringLiteral("status")).toString();
+        const bool needsBrowserAuth = object.value(QStringLiteral("needsBrowserAuth")).toBool(false);
+        entry.status = mapStatus(backendStatus);
         entry.connections = fallbackConnections;
         entry.fileType = detectFileType(entry.filename);
         entry.addedAt = parseDateTime(object.value(QStringLiteral("startedAt")));
@@ -539,8 +845,9 @@ void BackendClient::rebuildDownloads() {
         );
         entry.sizeText = QStringLiteral("%1 / %2").arg(formatSize(entry.downloaded), formatSize(entry.size));
         entry.progressText = progressText(entry.progressPercent);
-        entry.statusText = statusLabel(entry.status);
-        entry.statusColor = statusColor(entry.status);
+        entry.statusText = needsBrowserAuth && backendStatus == QStringLiteral("paused")
+            ? QStringLiteral("Needs Browser Handoff")
+            : statusLabel(backendStatus);
         next.push_back(entry);
     };
 
@@ -613,13 +920,6 @@ QString BackendClient::pathBasename(const QString &path) {
     return normalized.mid(slash + 1);
 }
 
-QString BackendClient::pathDirname(const QString &path) {
-    const QString normalized = path;
-    const int slash = std::max(normalized.lastIndexOf('/'), normalized.lastIndexOf('\\'));
-    if (slash < 0) return normalized;
-    return normalized.left(slash);
-}
-
 qint64 BackendClient::speedToBytes(const QString &speedText) {
     static const QRegularExpression pattern(QStringLiteral(R"(^\s*([\d.]+)\s*([KMG]?B)\/s\s*$)"), QRegularExpression::CaseInsensitiveOption);
     const auto match = pattern.match(speedText);
@@ -648,21 +948,22 @@ QString BackendClient::detectFileType(const QString &filename) {
 QString BackendClient::mapStatus(const QString &status) {
     if (status == QStringLiteral("completed")) return QStringLiteral("completed");
     if (status == QStringLiteral("failed")) return QStringLiteral("error");
-    if (status == QStringLiteral("cancelled")) return QStringLiteral("paused");
+    if (status == QStringLiteral("paused")) return QStringLiteral("paused");
+    if (status == QStringLiteral("cancelled")) return QStringLiteral("cancelled");
+    if (status == QStringLiteral("starting")) return QStringLiteral("downloading");
     if (status == QStringLiteral("downloading")) return QStringLiteral("downloading");
     return QStringLiteral("queued");
 }
 
-QString BackendClient::statusColor(const QString &status) {
-    if (status == QStringLiteral("completed")) return QStringLiteral("#4ade80");
-    if (status == QStringLiteral("downloading")) return QStringLiteral("#60a5fa");
-    if (status == QStringLiteral("paused")) return QStringLiteral("#fbbf24");
-    if (status == QStringLiteral("error")) return QStringLiteral("#f87171");
-    return QStringLiteral("#a1a1aa");
-}
-
 QString BackendClient::statusLabel(const QString &status) {
-    return humanStatus(status);
+    if (status == QStringLiteral("completed")) return QStringLiteral("Completed");
+    if (status == QStringLiteral("starting")) return QStringLiteral("Starting");
+    if (status == QStringLiteral("downloading")) return QStringLiteral("Downloading");
+    if (status == QStringLiteral("paused")) return QStringLiteral("Paused");
+    if (status == QStringLiteral("failed")) return QStringLiteral("Error");
+    if (status == QStringLiteral("cancelled")) return QStringLiteral("Cancelled");
+    if (status == QStringLiteral("error")) return QStringLiteral("Error");
+    return QStringLiteral("Queued");
 }
 
 QString BackendClient::formatSize(qint64 bytes) {

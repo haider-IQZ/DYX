@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <filter id="etchedShadow" x="342" y="290" width="340" height="420" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+    <linearGradient id="etchedStroke" x1="438" y1="356" x2="594" y2="620" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFC" stop-opacity="0.58"/>
+      <stop offset="1" stop-color="#DDD6FE" stop-opacity="0.34"/>
+    </linearGradient>
+  </defs>
+  <g opacity="0.16">
+    <path d="M244 262H326" stroke="#60A5FA" stroke-width="8" stroke-linecap="round"/>
+    <path d="M232 296H296" stroke="#60A5FA" stroke-width="6" stroke-linecap="round" opacity="0.45"/>
+  </g>
+  <g filter="url(#etchedShadow)" opacity="0.18">
+    <path d="M512 382V542" stroke="#111827" stroke-width="38" stroke-linecap="round"/>
+    <path d="M442 472L512 542L582 472" stroke="#111827" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M400 594H624" stroke="#111827" stroke-width="34" stroke-linecap="round"/>
+  </g>
+  <g opacity="0.42">
+    <path d="M512 388V536" stroke="url(#etchedStroke)" stroke-width="22" stroke-linecap="round"/>
+    <path d="M454 478L512 536L570 478" stroke="url(#etchedStroke)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M430 592H594" stroke="url(#etchedStroke)" stroke-width="18" stroke-linecap="round"/>
+    <circle cx="606" cy="592" r="9" fill="#E9D5FF" fill-opacity="0.34"/>
+  </g>
+</svg>
